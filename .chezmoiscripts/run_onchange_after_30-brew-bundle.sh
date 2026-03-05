@@ -1,0 +1,37 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_30-brew-bundle.sh
+# Purpose: Apply Homebrew package state after config changes.
+# Prerequisites: macOS with Homebrew available in /opt/homebrew.
+# Env flags: CHEZMOI_SKIP_BREW=1 skips all bundle actions; CHEZMOI_INSTALL_OPTIONAL=1 adds Brewfile.optional.
+# Failure behavior: exits non-zero if Homebrew is missing or brew bundle fails.
+
+if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
+  echo "Skipping Homebrew bundle because CHEZMOI_SKIP_BREW=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+
+if ! command -v brew >/dev/null 2>&1; then
+  cat >&2 <<'EOF'
+Homebrew not found. Prerequisites must be installed before brew bundle can run.
+Bootstrap with:
+  sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply <github-user>
+EOF
+  exit 1
+fi
+
+SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
+brew bundle --file "${SOURCE_DIR}/Brewfile"
+
+if [[ "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" && -f "${SOURCE_DIR}/Brewfile.optional" ]]; then
+  brew bundle --file "${SOURCE_DIR}/Brewfile.optional"
+fi
