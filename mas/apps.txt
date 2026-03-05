@@ -1,0 +1,2 @@
+# format: <app_store_id>|<app_name>
+441258766|Magnet

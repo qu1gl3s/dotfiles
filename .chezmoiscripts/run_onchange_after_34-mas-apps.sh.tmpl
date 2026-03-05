@@ -1,0 +1,95 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_34-mas-apps.sh.tmpl
+# Purpose: Install required Mac App Store apps with mas.
+# Prerequisites: macOS, Homebrew mas formula installed, App Store login.
+# Env flags:
+#   CHEZMOI_SKIP_BREW=1 skips this script
+#   CHEZMOI_SKIP_MAS=1 skips this script
+#   CHEZMOI_INSTALL_OPTIONAL=1 also installs apps from mas/optional-apps.txt
+# Failure behavior: exits non-zero if mas is missing, app list missing, or App Store login is unavailable.
+# Trigger hash (mas/apps.txt): {{ include "mas/apps.txt" | sha256sum }}
+# Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
+
+if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
+  echo "Skipping Mac App Store installs because CHEZMOI_SKIP_BREW=1"
+  exit 0
+fi
+
+if [[ "${CHEZMOI_SKIP_MAS:-0}" == "1" ]]; then
+  echo "Skipping Mac App Store installs because CHEZMOI_SKIP_MAS=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+
+if ! command -v mas >/dev/null 2>&1; then
+  cat >&2 <<'EOF'
+mas is required for Mac App Store app installs but was not found.
+Install prerequisites with:
+  brew install mas
+EOF
+  exit 1
+fi
+
+SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
+MAS_APPS_FILE="${SOURCE_DIR}/mas/apps.txt"
+MAS_OPTIONAL_APPS_FILE="${SOURCE_DIR}/mas/optional-apps.txt"
+
+if [[ ! -f "${MAS_APPS_FILE}" ]]; then
+  echo "Mac App Store app list not found: ${MAS_APPS_FILE}" >&2
+  exit 1
+fi
+
+if [[ "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" && ! -f "${MAS_OPTIONAL_APPS_FILE}" ]]; then
+  echo "Optional Mac App Store app list not found: ${MAS_OPTIONAL_APPS_FILE}" >&2
+  exit 1
+fi
+
+# Avoid Spotlight auto-index delays/noise from mas.
+export MAS_NO_AUTO_INDEX=1
+
+installed_ids="$(mas list 2>/dev/null | awk '{print $1}')"
+
+install_apps_from_file() {
+  local apps_file="$1"
+  local list_label="$2"
+
+  while IFS='|' read -r app_id app_name; do
+    [[ -z "${app_id}" || "${app_id:0:1}" == "#" ]] && continue
+
+    if grep -qx "${app_id}" <<<"${installed_ids}"; then
+      echo "Using ${app_name} (${app_id})"
+      continue
+    fi
+
+    echo "Installing ${list_label} app ${app_name} (${app_id}) from Mac App Store..."
+    if ! install_output="$(mas install "${app_id}" 2>&1)"; then
+      echo "${install_output}" >&2
+      if grep -Eqi 'sign in|not signed|no account|account.*required' <<<"${install_output}"; then
+        cat >&2 <<'EOF'
+Mac App Store authentication is required for mas installs.
+Sign in to the App Store app, then rerun:
+  chezmoi apply
+To bypass temporarily:
+  CHEZMOI_SKIP_MAS=1 chezmoi apply
+EOF
+      fi
+      exit 1
+    fi
+    echo "${install_output}"
+  done < "${apps_file}"
+}
+
+install_apps_from_file "${MAS_APPS_FILE}" "required"
+
+if [[ "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" ]]; then
+  install_apps_from_file "${MAS_OPTIONAL_APPS_FILE}" "optional"
+fi

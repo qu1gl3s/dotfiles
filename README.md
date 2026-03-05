@@ -17,7 +17,8 @@ It requires internet access and admin privileges.
 
 By default, chezmoi applies `Brewfile` (core formulas + compulsory casks).
 Core formulas include `dockutil`, used to enforce Dock icon order.
-Homebrew bundle runs via `run_after_30-brew-bundle.sh`, so package convergence happens on every `chezmoi apply`.
+Homebrew bundle runs via `run_onchange_after_30-brew-bundle.sh.tmpl`.
+The script template embeds `Brewfile` hashes so it re-runs automatically when `Brewfile` or `Brewfile.optional` changes.
 
 - Install optional formulas and VS Code extensions:
 
@@ -29,6 +30,19 @@ CHEZMOI_INSTALL_OPTIONAL=1 chezmoi apply
 
 ```sh
 CHEZMOI_SKIP_BREW=1 chezmoi apply
+```
+
+Mac App Store apps are managed with `mas` via `run_onchange_after_34-mas-apps.sh.tmpl`.
+
+- Required MAS apps (always installed): Magnet
+- Optional MAS apps (installed only with optional toggle): Parcel
+
+If App Store authentication is required, `chezmoi apply` will stop with an actionable message.
+After signing in, rerun `chezmoi apply`.
+To bypass MAS app installs temporarily:
+
+```sh
+CHEZMOI_SKIP_MAS=1 chezmoi apply
 ```
 
 Optional casks are not installed by default.
@@ -151,7 +165,6 @@ Lifecycle meanings:
 
 - `run_once_before`: run once before apply actions
 - `run_once_after`: run once after apply actions
-- `run_after`: run after every apply
 - `run_onchange_before`: run before apply when source state changes
 - `run_onchange_after`: run after apply when source state changes
 
@@ -160,6 +173,7 @@ Reserved slots:
 - `10`: OS/system prerequisites (CLT, Homebrew env checks)
 - `20`: toolchain/bootstrap prerequisites
 - `30`: package manager actions (`brew bundle`)
+- `34`: Mac App Store installs (`mas`)
 - `40`: macOS defaults/settings baseline
 - `45`: appearance baseline
 - `50`: Dock layout baseline
@@ -169,7 +183,8 @@ Naming examples:
 
 - `run_once_before_10-macos-prereqs.sh`
 - `run_once_before_20-bootstrap-toolchain.sh`
-- `run_after_30-brew-bundle.sh`
+- `run_onchange_after_30-brew-bundle.sh.tmpl`
+- `run_onchange_after_34-mas-apps.sh.tmpl`
 - `run_onchange_after_40-macos-defaults.sh`
 - `run_onchange_after_45-appearance.sh`
 - `run_onchange_after_50-dock-layout.sh`
