@@ -21,8 +21,10 @@ First run requires internet access and admin privileges.
 - Optional Homebrew selections
 - Mac App Store apps via `mas`
 - Allowlisted macOS defaults
+- Built-in display "More Space" scaling automation
 - Appearance baseline (dark mode + wallpaper)
 - Deterministic Dock app order
+- Post-apply verification report
 
 ## Homebrew and Mac App Store
 
@@ -55,6 +57,12 @@ CHEZMOI_SKIP_BREW=1 chezmoi apply
 # Skip MAS app installs only
 CHEZMOI_SKIP_MAS=1 chezmoi apply
 
+# Skip built-in display scaling automation
+CHEZMOI_SKIP_DISPLAY_SCALING=1 chezmoi apply
+
+# Skip verification hook
+CHEZMOI_SKIP_VERIFY=1 chezmoi apply
+
 # Re-run optional cask prompts manually
 bash "${HOME}/.local/share/chezmoi/.chezmoiscripts/run_once_after_35-optional-casks.sh"
 ```
@@ -82,12 +90,16 @@ Current tracked additions include:
 - Built-in tap-to-click on (`com.apple.AppleMultitouchTrackpad Clicking=1`)
 - Disable network `.DS_Store` files (`com.apple.desktopservices DSDontWriteNetworkStores=1`)
 - Click wallpaper behavior set to "Only in Stage Manager" (`com.apple.WindowManager EnableStandardClickToShowDesktop=0`)
+- Finder new-window target home (`com.apple.finder NewWindowTarget=PfHm`)
+- Finder new-window path (`com.apple.finder NewWindowTargetPath=__HOME_URI__`)
+- Finder desktop visibility for external/internal/server/removable volumes (`com.apple.finder Show*OnDesktop=1`)
 
 Not managed:
 
 - Finder hidden-files visibility (`com.apple.finder AppleShowAllFiles`)
 - Dock `persistent-apps` layout in defaults (Dock layout is managed separately with `dockutil`)
 - Network/privacy/account/iCloud identity settings
+- Additional WindowManager, input-tuning, and Dock UX extras beyond current baseline scope
 
 ### Screenshot location guard
 
@@ -119,6 +131,26 @@ chezmoi apply
 ```
 
 Source allowlist: `scripts/macos-settings-allowlist.txt`.
+
+## Display scaling (More Space)
+
+Built-in display scaling is enforced by:
+
+- `.chezmoiscripts/run_onchange_after_42-display-more-space.sh`
+
+Behavior:
+
+- targets built-in display only
+- uses `displayplacer list` to discover available built-in scaled modes
+- picks the highest logical `scaling:on` mode as "More Space"
+- applies only built-in display mode (`displayplacer "id:<id> res:<w>x<h> scaling:on"`)
+- fails fast if built-in display is unavailable or no scaled modes are found
+
+Skip:
+
+```sh
+CHEZMOI_SKIP_DISPLAY_SCALING=1 chezmoi apply
+```
 
 ## Appearance baseline
 
@@ -159,6 +191,40 @@ Skip:
 CHEZMOI_SKIP_DOCK_LAYOUT=1 chezmoi apply
 ```
 
+## Verification
+
+Post-apply verification is handled by:
+
+- `.chezmoiscripts/run_onchange_after_60-verify-bootstrap.sh.tmpl`
+- `scripts/verify-bootstrap.sh`
+
+Verification checks:
+
+- required core commands (`brew`, `chezmoi`, `dockutil`, `mas`, `desktoppr`, `displayplacer`)
+- formulas/casks from `Brewfile` are installed
+- required MAS apps from `mas/apps.txt` are installed
+- optional MAS apps from `mas/optional-apps.txt` are reported as info
+- Synology screenshot guard conditions and current screenshot path
+- built-in display scaling state (`scaling:on` + expected More Space target mode)
+- high-signal macOS defaults spot-checks
+- Dock app presence checks from `macos/dock-app-order.txt` (excluding Finder)
+
+Output format:
+
+- sectioned report with `PASS`, `WARN`, and `FAIL` lines
+- summary line: `PASS=<n> WARN=<n> FAIL=<n>`
+
+Modes:
+
+- default: report mode (always exits `0` so apply can continue)
+- strict: `CHEZMOI_VERIFY_STRICT=1` exits non-zero when any `FAIL` exists
+
+Manual run:
+
+```sh
+bash ~/.local/share/chezmoi/scripts/verify-bootstrap.sh
+```
+
 ## `.chezmoiscripts` naming and order
 
 Filename format:
@@ -176,8 +242,10 @@ Reserved slots:
 - `34`: Mac App Store installs (`mas`)
 - `40`: macOS defaults baseline
 - `41`: screenshot location guard
+- `42`: built-in display scaling ("More Space")
 - `45`: appearance baseline
 - `50`: Dock layout baseline
+- `60`: post-apply verification/reporting
 - `90`: optional/local follow-ups
 
 ## Secrets and SSH

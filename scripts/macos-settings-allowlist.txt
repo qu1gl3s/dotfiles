@@ -22,6 +22,12 @@ com.apple.finder ShowStatusBar bool
 com.apple.finder FXPreferredViewStyle string
 com.apple.finder _FXSortFoldersFirst bool
 com.apple.finder FXEnableExtensionChangeWarning bool
+com.apple.finder NewWindowTarget string
+com.apple.finder NewWindowTargetPath string
+com.apple.finder ShowExternalHardDrivesOnDesktop bool
+com.apple.finder ShowHardDrivesOnDesktop bool
+com.apple.finder ShowMountedServersOnDesktop bool
+com.apple.finder ShowRemovableMediaOnDesktop bool
 
 # Desktop services
 com.apple.desktopservices DSDontWriteNetworkStores bool

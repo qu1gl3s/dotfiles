@@ -1,0 +1,12 @@
+# Default-deny: ignore everything unless explicitly allowlisted below.
+/*
+
+# Allow only intended managed targets.
+!/.aliases
+!/.gitconfig
+!/.zprofile
+!/.zshrc
+!/.ssh
+!/.ssh/config
+!/.chezmoiscripts
+!/.chezmoiscripts/**

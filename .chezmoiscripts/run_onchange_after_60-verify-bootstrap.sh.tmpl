@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_60-verify-bootstrap.sh.tmpl
+# Purpose: Run post-apply bootstrap verification checks.
+# Prerequisites: scripts/verify-bootstrap.sh exists in source dir.
+# Env flags:
+#   CHEZMOI_SKIP_VERIFY=1 skips this script
+#   CHEZMOI_VERIFY_STRICT=1 makes verification fail on any FAIL checks
+# Failure behavior: exits non-zero when verifier is missing or strict mode finds failures.
+# Trigger hash (Brewfile): {{ include "Brewfile" | sha256sum }}
+# Trigger hash (mas/apps.txt): {{ include "mas/apps.txt" | sha256sum }}
+# Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
+# Trigger hash (macos/dock-app-order.txt): {{ include "macos/dock-app-order.txt" | sha256sum }}
+# Trigger hash (macos/settings-baseline.sh): {{ include "macos/settings-baseline.sh" | sha256sum }}
+
+if [[ "${CHEZMOI_SKIP_VERIFY:-0}" == "1" ]]; then
+  echo "Skipping bootstrap verification because CHEZMOI_SKIP_VERIFY=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
+VERIFY_SCRIPT="${SOURCE_DIR}/scripts/verify-bootstrap.sh"
+
+if [[ ! -f "${VERIFY_SCRIPT}" ]]; then
+  echo "Verification script not found: ${VERIFY_SCRIPT}" >&2
+  exit 1
+fi
+
+bash "${VERIFY_SCRIPT}"
