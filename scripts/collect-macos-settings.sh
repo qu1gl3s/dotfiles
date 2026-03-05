@@ -53,6 +53,22 @@ normalize_value() {
   esac
 }
 
+canonicalize_value() {
+  local domain="$1"
+  local key="$2"
+  local type="$3"
+  local value="$4"
+
+  if [[ "${domain}" == "com.apple.finder" && "${key}" == "NewWindowTargetPath" && "${type}" == "string" ]]; then
+    if [[ "${value}" =~ ^file:///Users/[^/]+/?$ ]]; then
+      echo "__HOME_URI__"
+      return 0
+    fi
+  fi
+
+  echo "${value}"
+}
+
 entries=()
 while read -r domain key type; do
   [[ -z "${domain}" || "${domain:0:1}" == "#" ]] && continue
@@ -63,6 +79,7 @@ while read -r domain key type; do
   fi
 
   value="$(normalize_value "${type}" "${raw_value}")"
+  value="$(canonicalize_value "${domain}" "${key}" "${type}" "${value}")"
   entries+=("${domain} ${key} ${type} ${value}")
 done < "${ALLOWLIST_FILE}"
 

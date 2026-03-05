@@ -91,7 +91,7 @@ Current tracked additions include:
 - Disable network `.DS_Store` files (`com.apple.desktopservices DSDontWriteNetworkStores=1`)
 - Click wallpaper behavior set to "Only in Stage Manager" (`com.apple.WindowManager EnableStandardClickToShowDesktop=0`)
 - Finder new-window target home (`com.apple.finder NewWindowTarget=PfHm`)
-- Finder new-window path (`com.apple.finder NewWindowTargetPath=__HOME_URI__`)
+- Finder new-window path (`com.apple.finder NewWindowTargetPath` resolved dynamically to `file://$HOME/`)
 - Finder desktop visibility for external/internal/server/removable volumes (`com.apple.finder Show*OnDesktop=1`)
 
 Not managed:

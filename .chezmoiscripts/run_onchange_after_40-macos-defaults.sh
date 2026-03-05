@@ -93,6 +93,20 @@ write_setting() {
   esac
 }
 
+resolve_dynamic_value() {
+  local domain="$1"
+  local key="$2"
+  local type="$3"
+  local value="$4"
+
+  if [[ "${domain}" == "com.apple.finder" && "${key}" == "NewWindowTargetPath" && "${type}" == "string" && "${value}" == "__HOME_URI__" ]]; then
+    printf 'file://%s/' "${HOME}"
+    return 0
+  fi
+
+  printf '%s' "${value}"
+}
+
 restart_dock=0
 restart_finder=0
 restart_systemuiserver=0
@@ -106,12 +120,14 @@ while read -r domain key type value; do
     has_current=1
   fi
 
-  if [[ "${has_current}" -eq 1 ]] && values_equal "${type}" "${current}" "${value}"; then
+  desired_value="$(resolve_dynamic_value "${domain}" "${key}" "${type}" "${value}")"
+
+  if [[ "${has_current}" -eq 1 ]] && values_equal "${type}" "${current}" "${desired_value}"; then
     continue
   fi
 
-  write_setting "${domain}" "${key}" "${type}" "${value}"
-  echo "Applied ${domain} ${key}=${value}"
+  write_setting "${domain}" "${key}" "${type}" "${desired_value}"
+  echo "Applied ${domain} ${key}=${desired_value}"
 
   case "${domain}" in
     com.apple.dock) restart_dock=1 ;;
