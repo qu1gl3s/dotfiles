@@ -65,20 +65,16 @@ if [[ "${#apps[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-if [[ "${apps[0]}" != "${FINDER_APP}" ]]; then
-  cat >&2 <<EOF
-Dock order baseline is invalid: first app must be Finder.
-Expected: ${FINDER_APP}
-Found: ${apps[0]}
-EOF
-  exit 1
-fi
-
 dockutil --remove all --no-restart
 
 added_count=0
 missing_count=0
 for app_path in "${apps[@]}"; do
+  if [[ "${app_path}" == "${FINDER_APP}" ]]; then
+    echo "Skipping Finder; it is managed by macOS to avoid duplicate Dock icons."
+    continue
+  fi
+
   if [[ -d "${app_path}" ]]; then
     dockutil --add "${app_path}" --no-restart
     echo "Added to Dock: ${app_path}"

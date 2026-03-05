@@ -1,120 +1,115 @@
 # Dotfiles managed with chezmoi
 
-This repository manages shell, git, SSH config, and Homebrew formulas for new machine bootstrap.
+This repository bootstraps a macOS Apple Silicon laptop with shell/git/ssh config, packages, selected system settings, appearance, and Dock layout.
 
-## Bootstrap a new laptop
+## Bootstrap
 
-Run this one command:
+Run one command on a new machine:
 
 ```sh
 sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply <github-user>
 ```
 
-On first run, this bootstrap handles prerequisites (Xcode Command Line Tools via Homebrew install path + Homebrew) before running `brew bundle`.
-It requires internet access and admin privileges.
+First run requires internet access and admin privileges.
 
-## Homebrew behavior
+## What this repo manages
 
-By default, chezmoi applies `Brewfile` (core formulas + compulsory casks).
-Core formulas include `dockutil`, used to enforce Dock icon order.
-Homebrew bundle runs via `run_onchange_after_30-brew-bundle.sh.tmpl`.
-The script template embeds `Brewfile` hashes so it re-runs automatically when `Brewfile` or `Brewfile.optional` changes.
+- Shell: `~/.zshrc`, `~/.zprofile`, `~/.aliases`
+- Git: `~/.gitconfig`
+- SSH config: `~/.ssh/config` (config only, no keys)
+- Homebrew formulas/casks
+- Optional Homebrew selections
+- Mac App Store apps via `mas`
+- Allowlisted macOS defaults
+- Appearance baseline (dark mode + wallpaper)
+- Deterministic Dock app order
 
-- Install optional formulas and VS Code extensions:
+## Homebrew and Mac App Store
+
+Core package convergence is handled by:
+
+- `.chezmoiscripts/run_onchange_after_30-brew-bundle.sh.tmpl`
+
+This script template embeds `Brewfile`/`Brewfile.optional` hashes, so it re-runs automatically when those files change.
+
+Mac App Store apps are handled by:
+
+- `.chezmoiscripts/run_onchange_after_34-mas-apps.sh.tmpl`
+
+MAS app policy:
+
+- Required: Magnet
+- Optional (with optional toggle): Parcel
+
+If App Store authentication is required, apply exits with instructions. Sign in to the App Store app, then rerun `chezmoi apply`.
+
+## Optional installs and skip toggles
 
 ```sh
+# Install optional formulas, optional VS Code extensions, and optional MAS apps
 CHEZMOI_INSTALL_OPTIONAL=1 chezmoi apply
-```
 
-- Skip all Homebrew actions:
-
-```sh
+# Skip all Homebrew work (including MAS and cask prompts)
 CHEZMOI_SKIP_BREW=1 chezmoi apply
-```
 
-Mac App Store apps are managed with `mas` via `run_onchange_after_34-mas-apps.sh.tmpl`.
-
-- Required MAS apps (always installed): Magnet
-- Optional MAS apps (installed only with optional toggle): Parcel
-
-If App Store authentication is required, `chezmoi apply` will stop with an actionable message.
-After signing in, rerun `chezmoi apply`.
-To bypass MAS app installs temporarily:
-
-```sh
+# Skip MAS app installs only
 CHEZMOI_SKIP_MAS=1 chezmoi apply
-```
 
-Optional casks are not installed by default.
-On first run per machine, chezmoi prompts for each optional cask in `casks/optional-casks.txt`.
-Default answer is No for every optional cask.
-If no TTY is available (for example CI/non-interactive runs), optional cask prompts are skipped safely.
-
-To re-run optional cask selection manually:
-
-```sh
+# Re-run optional cask prompts manually
 bash "${HOME}/.local/share/chezmoi/.chezmoiscripts/run_once_after_35-optional-casks.sh"
 ```
 
-## macOS system settings baseline
+Optional casks are prompted one time per machine from `casks/optional-casks.txt`.
+In non-interactive sessions (no TTY), optional cask prompts are skipped.
 
-This repo can apply an allowlisted set of macOS UI settings after package install.
+## macOS settings baseline
 
-- Apply is enabled by default during `chezmoi apply`.
-- Skip with:
+Allowlisted UI settings are applied by default via:
+
+- `.chezmoiscripts/run_onchange_after_40-macos-defaults.sh`
+- `macos/settings-baseline.sh`
+
+Skip:
 
 ```sh
 CHEZMOI_SKIP_MACOS_DEFAULTS=1 chezmoi apply
 ```
 
-### Collection workflow
+Current tracked additions include:
 
-1. Apply current baseline first (ensures missing keys exist before collection):
+- Trackpad scroll direction off (`NSGlobalDomain com.apple.swipescrolldirection=0`)
+- Built-in tap-to-click on (`com.apple.AppleMultitouchTrackpad Clicking=1`)
+- Disable network `.DS_Store` files (`com.apple.desktopservices DSDontWriteNetworkStores=1`)
+- Click wallpaper behavior set to "Only in Stage Manager" (`com.apple.WindowManager EnableStandardClickToShowDesktop=0`)
+
+Not managed:
+
+- Finder hidden-files visibility (`com.apple.finder AppleShowAllFiles`)
+- Dock `persistent-apps` layout in defaults (Dock layout is managed separately with `dockutil`)
+- Screenshot location/path
+- Network/privacy/account/iCloud identity settings
+
+### Refreshing collected settings
 
 ```sh
+# 1) Apply first so missing keys exist
 chezmoi apply
-```
 
-2. Review/edit allowlist entries:
-   - `scripts/macos-settings-allowlist.txt`
-3. Collect current values from this machine:
-
-```sh
+# 2) Inspect collected values
 ./scripts/collect-macos-settings.sh
-```
 
-4. Regenerate the baseline from current machine values:
-
-```sh
+# 3) Regenerate baseline
 ./scripts/collect-macos-settings.sh --write-baseline ./macos/settings-baseline.sh
 ```
 
-5. Review `macos/settings-baseline.sh` before commit.
-
-Scope guardrails:
-
-- includes: safe UI baseline keys for `NSGlobalDomain`, `com.apple.AppleMultitouchTrackpad`, `com.apple.finder`, `com.apple.desktopservices`, `com.apple.dock`, `com.apple.screencapture`, `com.apple.WindowManager`
-- excludes: `com.apple.finder AppleShowAllFiles`, Dock app layout (`persistent-apps`), screenshot path/location, network/privacy/account/iCloud keys
-
-Current additions in this phase:
-
-- trackpad scroll direction: `NSGlobalDomain com.apple.swipescrolldirection=0` (natural scroll off)
-- built-in tap-to-click only: `com.apple.AppleMultitouchTrackpad Clicking=1`
-- disable network `.DS_Store` writes: `com.apple.desktopservices DSDontWriteNetworkStores=1`
-- desktop click behavior: `com.apple.WindowManager EnableStandardClickToShowDesktop=0` ("Only in Stage Manager")
-- Finder hidden-files visibility remains unmanaged by this repo
+Source allowlist: `scripts/macos-settings-allowlist.txt`.
 
 ## Appearance baseline
 
-This repo applies appearance settings without AppleScript `System Events`.
-
-- dark mode is enforced with `defaults` keys in `NSGlobalDomain`
-- wallpaper is enforced with `desktoppr`
-- changes are applied only when current state differs from baseline
-
-Appearance source file:
+Applied by `.chezmoiscripts/run_onchange_after_45-appearance.sh` using:
 
 - `macos/appearance-baseline.sh`
+- `desktoppr` (no AppleScript `System Events`)
 
 Default baseline:
 
@@ -122,7 +117,7 @@ Default baseline:
 - `APPEARANCE_AUTO_SWITCH=0`
 - `WALLPAPER_PATH="/System/Library/Desktop Pictures/Solid Colors/Teal.png"`
 
-Skip controls:
+Skips:
 
 ```sh
 CHEZMOI_SKIP_APPEARANCE=1 chezmoi apply
@@ -132,81 +127,43 @@ CHEZMOI_SKIP_WALLPAPER=1 chezmoi apply
 
 ## Dock layout baseline
 
-This repo enforces an exact Dock app order with `dockutil`.
-Dock app paths are sourced from:
-
-- `macos/dock-app-order.txt`
+Applied by `.chezmoiscripts/run_onchange_after_50-dock-layout.sh` from `macos/dock-app-order.txt`.
 
 Behavior:
 
-- Dock app section is reset on apply (`dockutil --remove all --no-restart`).
-- Apps are re-added in exact listed order (Finder is validated as position 1).
-- Missing app paths are warned and skipped; remaining apps continue.
-- Dock is restarted once at the end.
-- Script uses Homebrew Bash (formula `bash`) for modern Bash features.
+- Resets Dock app section
+- Re-adds apps in exact listed order
+- Does not explicitly add Finder (prevents duplicate Finder Dock icons)
+- Warns and skips missing app paths
+- Restarts Dock once at end
 
-Skip control:
+Skip:
 
 ```sh
 CHEZMOI_SKIP_DOCK_LAYOUT=1 chezmoi apply
 ```
 
-## `.chezmoiscripts` convention
+## `.chezmoiscripts` naming and order
 
-Script filenames follow a strict deterministic pattern:
+Filename format:
 
 - `run_<frequency>_<phase>_<NN>-<purpose>.sh`
-- `<frequency>` is `once` or `onchange`
-- `<phase>` is `before` or `after`
-- `<NN>` is a two-digit order slot (`10`, `20`, `30`, ...)
-- `<purpose>` is short kebab-case
-
-Lifecycle meanings:
-
-- `run_once_before`: run once before apply actions
-- `run_once_after`: run once after apply actions
-- `run_onchange_before`: run before apply when source state changes
-- `run_onchange_after`: run after apply when source state changes
+- `<frequency>`: `once` or `onchange`
+- `<phase>`: `before` or `after`
+- `<NN>`: two-digit slot number
 
 Reserved slots:
 
-- `10`: OS/system prerequisites (CLT, Homebrew env checks)
+- `10`: OS/system prerequisites
 - `20`: toolchain/bootstrap prerequisites
 - `30`: package manager actions (`brew bundle`)
 - `34`: Mac App Store installs (`mas`)
-- `40`: macOS defaults/settings baseline
+- `40`: macOS defaults baseline
 - `45`: appearance baseline
 - `50`: Dock layout baseline
-- `90`: optional/local machine follow-ups
-
-Naming examples:
-
-- `run_once_before_10-macos-prereqs.sh`
-- `run_once_before_20-bootstrap-toolchain.sh`
-- `run_onchange_after_30-brew-bundle.sh.tmpl`
-- `run_onchange_after_34-mas-apps.sh.tmpl`
-- `run_onchange_after_40-macos-defaults.sh`
-- `run_onchange_after_45-appearance.sh`
-- `run_onchange_after_50-dock-layout.sh`
-- `run_once_after_90-local-followups.sh`
-
-New script checklist:
-
-- choose lifecycle (`once`/`onchange`, `before`/`after`)
-- choose the correct slot number
-- define skip behavior (for example `CHEZMOI_SKIP_BREW`)
-- define fail-fast or warn-and-continue behavior
-- add a test command (at minimum `bash -n <script>`)
-
-## Managed files in phase 1
-
-- `~/.zshrc`
-- `~/.zprofile`
-- `~/.aliases`
-- `~/.gitconfig`
-- `~/.ssh/config` (config only, no keys or known_hosts)
+- `90`: optional/local follow-ups
 
 ## Secrets and SSH
 
 - Secret material is intentionally not stored in this repo.
-- SSH authentication is expected to use the 1Password SSH agent socket configured in `~/.ssh/config`.
+- SSH auth is expected via 1Password SSH agent configured in `~/.ssh/config`.
