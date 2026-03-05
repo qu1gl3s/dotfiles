@@ -1,0 +1,25 @@
+# One optional cask token per line.
+# These are prompted by .chezmoiscripts/run_once_after_35-optional-casks.sh.
+
+affinity
+audacity
+backblaze
+neo-network-utility
+nordvpn
+balenaetcher
+handbrake-app
+wireshark-app
+microsoft-excel
+microsoft-word
+localsend
+logi-options+
+losslesscut
+mediainfo
+whatsapp
+freac
+pdf-expert
+slack
+soulseek
+discord
+musicbrainz-picard
+oscar

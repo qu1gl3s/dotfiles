@@ -1,5 +1,5 @@
 # Homebrew formulas sourced from `brew leaves`.
-# Phase 1 intentionally excludes casks.
+# Compulsory casks are included for bootstrap.
 
 tap "teamookla/speedtest"
 
@@ -13,5 +13,29 @@ brew "nmap"
 brew "node"
 brew "poppler"
 brew "python@3.13"
+brew "dockutil"
 brew "teamookla/speedtest/speedtest"
 brew "yt-dlp"
+
+# Compulsory casks
+cask "1password"
+cask "chatgpt"
+cask "coconutbattery"
+cask "google-chrome"
+cask "istat-menus"
+cask "iterm2"
+cask "fastmail"
+cask "firefox"
+cask "hiddenbar"
+cask "spotify"
+cask "synology-drive"
+cask "visual-studio-code"
+cask "vlc"
+cask "zoom"
+cask "appcleaner"
+cask "github"
+cask "codex-app"
+cask "desktoppr"
+cask "keka"
+cask "omnidisksweeper"
+cask "applite"

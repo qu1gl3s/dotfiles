@@ -1,0 +1,47 @@
+# domain key type
+# Supported types: bool, int, float, string
+
+# NSGlobalDomain: keyboard/input and file extension visibility
+NSGlobalDomain AppleShowAllExtensions bool
+NSGlobalDomain ApplePressAndHoldEnabled bool
+NSGlobalDomain com.apple.swipescrolldirection bool
+NSGlobalDomain InitialKeyRepeat int
+NSGlobalDomain KeyRepeat int
+NSGlobalDomain NSAutomaticCapitalizationEnabled bool
+NSGlobalDomain NSAutomaticDashSubstitutionEnabled bool
+NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled bool
+NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled bool
+NSGlobalDomain NSAutomaticSpellingCorrectionEnabled bool
+
+# Trackpad: built-in tap-to-click only
+com.apple.AppleMultitouchTrackpad Clicking bool
+
+# Finder: safe UI baseline only (exclude AppleShowAllFiles)
+com.apple.finder ShowPathbar bool
+com.apple.finder ShowStatusBar bool
+com.apple.finder FXPreferredViewStyle string
+com.apple.finder _FXSortFoldersFirst bool
+com.apple.finder FXEnableExtensionChangeWarning bool
+
+# Desktop services
+com.apple.desktopservices DSDontWriteNetworkStores bool
+
+# Dock behavior only (no persistent-apps layout)
+com.apple.dock autohide bool
+com.apple.dock autohide-delay float
+com.apple.dock autohide-time-modifier float
+com.apple.dock magnification bool
+com.apple.dock largesize int
+com.apple.dock mineffect string
+com.apple.dock minimize-to-application bool
+com.apple.dock orientation string
+com.apple.dock show-recents bool
+com.apple.dock launchanim bool
+
+# Screenshot behavior (exclude location/path keys)
+com.apple.screencapture type string
+com.apple.screencapture disable-shadow bool
+com.apple.screencapture show-thumbnail bool
+
+# Window Manager behavior
+com.apple.WindowManager EnableStandardClickToShowDesktop bool

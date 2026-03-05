@@ -1,0 +1,98 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_45-appearance.sh
+# Purpose: Apply appearance settings (dark mode + wallpaper) without System Events.
+# Prerequisites: macOS and macos/appearance-baseline.sh in source dir.
+# Env flags:
+#   CHEZMOI_SKIP_APPEARANCE=1 skips this script
+#   CHEZMOI_SKIP_DARK_MODE=1 skips dark mode changes
+#   CHEZMOI_SKIP_WALLPAPER=1 skips wallpaper changes
+# Failure behavior: exits non-zero on missing dependencies or invalid baseline values.
+
+if [[ "${CHEZMOI_SKIP_APPEARANCE:-0}" == "1" ]]; then
+  echo "Skipping appearance settings because CHEZMOI_SKIP_APPEARANCE=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+
+SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
+BASELINE_FILE="${SOURCE_DIR}/macos/appearance-baseline.sh"
+
+if [[ ! -f "${BASELINE_FILE}" ]]; then
+  echo "Missing appearance baseline: ${BASELINE_FILE}" >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "${BASELINE_FILE}"
+
+normalize_bool() {
+  case "${1}" in
+    1|true|TRUE|yes|YES|on|ON) echo 1 ;;
+    0|false|FALSE|no|NO|off|OFF) echo 0 ;;
+    *) echo "${1}" ;;
+  esac
+}
+
+appearance_changed=0
+
+if [[ "${CHEZMOI_SKIP_DARK_MODE:-0}" != "1" ]]; then
+  desired_style=""
+  case "${APPEARANCE_MODE}" in
+    dark|Dark) desired_style="Dark" ;;
+    light|Light) desired_style="Light" ;;
+    *)
+      echo "Unsupported APPEARANCE_MODE value: ${APPEARANCE_MODE}" >&2
+      exit 1
+      ;;
+  esac
+
+  current_style="$(defaults read NSGlobalDomain AppleInterfaceStyle 2>/dev/null || true)"
+  current_auto="$(defaults read NSGlobalDomain AppleInterfaceStyleSwitchesAutomatically 2>/dev/null || echo 0)"
+  desired_auto="$(normalize_bool "${APPEARANCE_AUTO_SWITCH}")"
+
+  if [[ "${current_style}" != "${desired_style}" ]]; then
+    defaults write NSGlobalDomain AppleInterfaceStyle -string "${desired_style}"
+    echo "Applied dark mode style: ${desired_style}"
+    appearance_changed=1
+  fi
+
+  if [[ "$(normalize_bool "${current_auto}")" != "${desired_auto}" ]]; then
+    defaults write NSGlobalDomain AppleInterfaceStyleSwitchesAutomatically -bool "${desired_auto}"
+    echo "Applied automatic appearance switch: ${desired_auto}"
+    appearance_changed=1
+  fi
+fi
+
+if [[ "${CHEZMOI_SKIP_WALLPAPER:-0}" != "1" ]]; then
+  if ! command -v desktoppr >/dev/null 2>&1; then
+    echo "desktoppr is required for wallpaper management but is not installed." >&2
+    exit 1
+  fi
+
+  if [[ -z "${WALLPAPER_PATH:-}" || ! -f "${WALLPAPER_PATH}" ]]; then
+    echo "Configured wallpaper path is missing: ${WALLPAPER_PATH:-<unset>}" >&2
+    exit 1
+  fi
+
+  current_wallpaper="$(desktoppr 2>/dev/null || true)"
+  escaped_path="${WALLPAPER_PATH// /%20}"
+
+  if [[ "${current_wallpaper}" != *"${WALLPAPER_PATH}"* && "${current_wallpaper}" != *"${escaped_path}"* ]]; then
+    desktoppr "${WALLPAPER_PATH}"
+    echo "Applied wallpaper: ${WALLPAPER_PATH}"
+    appearance_changed=1
+  fi
+fi
+
+if [[ "${appearance_changed}" -eq 1 ]]; then
+  killall SystemUIServer >/dev/null 2>&1 || true
+fi
