@@ -69,9 +69,20 @@ write_setting() {
   local key="$2"
   local type="$3"
   local value="$4"
+  local normalized_bool=""
 
   case "${type}" in
-    bool) defaults write "${domain}" "${key}" -bool "${value}" ;;
+    bool)
+      normalized_bool="$(normalize_bool "${value}")"
+      case "${normalized_bool}" in
+        1) defaults write "${domain}" "${key}" -bool true ;;
+        0) defaults write "${domain}" "${key}" -bool false ;;
+        *)
+          echo "Unsupported bool value '${value}' for ${domain} ${key}" >&2
+          return 1
+          ;;
+      esac
+      ;;
     int) defaults write "${domain}" "${key}" -int "${value}" ;;
     float) defaults write "${domain}" "${key}" -float "${value}" ;;
     string) defaults write "${domain}" "${key}" -string "${value}" ;;

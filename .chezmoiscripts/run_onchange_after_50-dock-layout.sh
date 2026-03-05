@@ -3,11 +3,11 @@ set -euo pipefail
 #
 # Script: run_onchange_after_50-dock-layout.sh
 # Purpose: Rebuild Dock app layout to the baseline order using dockutil.
-# Prerequisites: macOS, dockutil available, and macos/dock-app-order.txt present.
+# Prerequisites: macOS, Homebrew Bash, dockutil, and macos/dock-app-order.txt present.
 # Env flags:
 #   CHEZMOI_SKIP_DOCK_LAYOUT=1 skips this script
 #   CHEZMOI_SKIP_BREW=1 skips this script because dockutil is Homebrew-managed
-# Failure behavior: exits non-zero if dockutil/order file is missing or Dock reset fails.
+# Failure behavior: exits non-zero if Homebrew Bash/dockutil/order file is missing or Dock reset fails.
 
 if [[ "${CHEZMOI_SKIP_DOCK_LAYOUT:-0}" == "1" ]]; then
   echo "Skipping Dock layout because CHEZMOI_SKIP_DOCK_LAYOUT=1"
@@ -21,6 +21,19 @@ fi
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 0
+fi
+
+# Use Homebrew Bash for modern features (e.g., mapfile).
+if [[ "${BASH_VERSINFO[0]:-0}" -lt 4 ]]; then
+  if [[ -x /opt/homebrew/bin/bash ]]; then
+    exec /opt/homebrew/bin/bash "$0" "$@"
+  fi
+  cat >&2 <<'EOF'
+Homebrew Bash is required for Dock layout management but was not found.
+Install prerequisites with:
+  brew install bash
+EOF
+  exit 1
 fi
 
 if [[ -x /opt/homebrew/bin/brew ]]; then

@@ -66,7 +66,11 @@ if [[ "${CHEZMOI_SKIP_DARK_MODE:-0}" != "1" ]]; then
   fi
 
   if [[ "$(normalize_bool "${current_auto}")" != "${desired_auto}" ]]; then
-    defaults write NSGlobalDomain AppleInterfaceStyleSwitchesAutomatically -bool "${desired_auto}"
+    if [[ "${desired_auto}" == "1" ]]; then
+      defaults write NSGlobalDomain AppleInterfaceStyleSwitchesAutomatically -bool true
+    else
+      defaults write NSGlobalDomain AppleInterfaceStyleSwitchesAutomatically -bool false
+    fi
     echo "Applied automatic appearance switch: ${desired_auto}"
     appearance_changed=1
   fi

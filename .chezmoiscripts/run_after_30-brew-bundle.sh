@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 #
-# Script: run_onchange_after_30-brew-bundle.sh
-# Purpose: Apply Homebrew package state after config changes.
+# Script: run_after_30-brew-bundle.sh
+# Purpose: Apply Homebrew package state on every chezmoi apply for convergence.
 # Prerequisites: macOS with Homebrew available in /opt/homebrew.
 # Env flags: CHEZMOI_SKIP_BREW=1 skips all bundle actions; CHEZMOI_INSTALL_OPTIONAL=1 adds Brewfile.optional.
 # Failure behavior: exits non-zero if Homebrew is missing or brew bundle fails.

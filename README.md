@@ -17,6 +17,7 @@ It requires internet access and admin privileges.
 
 By default, chezmoi applies `Brewfile` (core formulas + compulsory casks).
 Core formulas include `dockutil`, used to enforce Dock icon order.
+Homebrew bundle runs via `run_after_30-brew-bundle.sh`, so package convergence happens on every `chezmoi apply`.
 
 - Install optional formulas and VS Code extensions:
 
@@ -128,6 +129,7 @@ Behavior:
 - Apps are re-added in exact listed order (Finder is validated as position 1).
 - Missing app paths are warned and skipped; remaining apps continue.
 - Dock is restarted once at the end.
+- Script uses Homebrew Bash (formula `bash`) for modern Bash features.
 
 Skip control:
 
@@ -149,6 +151,7 @@ Lifecycle meanings:
 
 - `run_once_before`: run once before apply actions
 - `run_once_after`: run once after apply actions
+- `run_after`: run after every apply
 - `run_onchange_before`: run before apply when source state changes
 - `run_onchange_after`: run after apply when source state changes
 
@@ -166,7 +169,7 @@ Naming examples:
 
 - `run_once_before_10-macos-prereqs.sh`
 - `run_once_before_20-bootstrap-toolchain.sh`
-- `run_onchange_after_30-brew-bundle.sh`
+- `run_after_30-brew-bundle.sh`
 - `run_onchange_after_40-macos-defaults.sh`
 - `run_onchange_after_45-appearance.sh`
 - `run_onchange_after_50-dock-layout.sh`
