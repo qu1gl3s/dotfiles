@@ -67,6 +67,7 @@ In non-interactive sessions (no TTY), optional cask prompts are skipped.
 Allowlisted UI settings are applied by default via:
 
 - `.chezmoiscripts/run_onchange_after_40-macos-defaults.sh`
+- `.chezmoiscripts/run_onchange_after_41-screenshot-location.sh`
 - `macos/settings-baseline.sh`
 
 Skip:
@@ -86,8 +87,23 @@ Not managed:
 
 - Finder hidden-files visibility (`com.apple.finder AppleShowAllFiles`)
 - Dock `persistent-apps` layout in defaults (Dock layout is managed separately with `dockutil`)
-- Screenshot location/path
 - Network/privacy/account/iCloud identity settings
+
+### Screenshot location guard
+
+Screenshot location is enforced separately from the collected allowlist:
+
+- script: `.chezmoiscripts/run_onchange_after_41-screenshot-location.sh`
+- source path rule: `~/Library/CloudStorage/SynologyDrive-*/Screenshots`
+
+Behavior:
+
+- requires exactly one `SynologyDrive-*` root under `~/Library/CloudStorage`
+- fails fast if root is missing or ambiguous
+- fails fast if `Screenshots` folder is missing
+- writes `com.apple.screencapture location` only when drift is detected
+
+If it fails, configure Synology Drive / folder structure and rerun `chezmoi apply`.
 
 ### Refreshing collected settings
 
@@ -159,6 +175,7 @@ Reserved slots:
 - `30`: package manager actions (`brew bundle`)
 - `34`: Mac App Store installs (`mas`)
 - `40`: macOS defaults baseline
+- `41`: screenshot location guard
 - `45`: appearance baseline
 - `50`: Dock layout baseline
 - `90`: optional/local follow-ups
