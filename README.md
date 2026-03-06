@@ -271,7 +271,7 @@ CHEZMOI_SKIP_WALLPAPER=1 chezmoi apply
 
 ## Dock layout baseline
 
-Applied by `.chezmoiscripts/run_onchange_after_50-dock-layout.sh` from `macos/dock-app-order.txt`.
+Applied by `.chezmoiscripts/run_onchange_after_50-dock-layout.sh.tmpl` from `macos/dock-app-order.txt`.
 
 Behavior:
 

@@ -12,6 +12,7 @@
 /System/Applications/Messages.app
 /System/Applications/Photos.app
 /Applications/Spotify.app
+/Applications/Plexamp.app
 /Applications/iTerm.app
 /System/Applications/App Store.app
 /System/Applications/System Settings.app
