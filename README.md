@@ -33,7 +33,7 @@ License: MIT. See `LICENSE`.
 Core package convergence is handled by:
 
 - `.chezmoiscripts/run_onchange_after_30-brew-bundle.sh.tmpl`
-- `.chezmoiscripts/run_after_31-hiddenbar-notch.sh`
+- `.chezmoiscripts/run_onchange_after_31-hiddenbar-notch.sh.tmpl`
 
 This script template embeds `Brewfile`/`Brewfile.optional` hashes, so it re-runs automatically when those files change.
 
