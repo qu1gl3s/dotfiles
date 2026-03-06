@@ -293,7 +293,7 @@ else
     done
   else
     desired_screenshot_path="${synology_roots[0]}/Screenshots"
-    desired_screenshot_tilde="~${desired_screenshot_path#${HOME}}"
+    desired_screenshot_tilde="~${desired_screenshot_path#"${HOME}"}"
 
     if [[ -d "${desired_screenshot_path}" ]]; then
       pass "Screenshot folder exists: ${desired_screenshot_path}"

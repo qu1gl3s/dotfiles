@@ -17,6 +17,7 @@ brew "nmap"
 brew "node"
 brew "poppler"
 brew "python@3.13"
+brew "shellcheck"
 brew "teamookla/speedtest/speedtest"
 brew "yt-dlp"
 

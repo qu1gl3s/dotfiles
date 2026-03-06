@@ -16,10 +16,8 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 0
 fi
 
-cloud_root_glob="${HOME}/Library/CloudStorage/SynologyDrive-*"
-
 shopt -s nullglob
-candidate_roots=( ${cloud_root_glob} )
+candidate_roots=( "${HOME}"/Library/CloudStorage/SynologyDrive-* )
 shopt -u nullglob
 
 if [[ "${#candidate_roots[@]}" -eq 0 ]]; then
@@ -54,7 +52,7 @@ EOF
   exit 1
 fi
 
-desired_tilde_path="~${desired_path#${HOME}}"
+desired_tilde_path="~${desired_path#"${HOME}"}"
 current_path="$(defaults read com.apple.screencapture location 2>/dev/null || true)"
 
 if [[ "${current_path}" == "${desired_path}" || "${current_path}" == "${desired_tilde_path}" ]]; then
