@@ -38,13 +38,54 @@ if [[ ! -t 0 || ! -t 1 ]]; then
   exit 0
 fi
 
+install_freac_continuous() {
+  local download_url="https://github.com/enzo1982/freac/releases/download/continuous/freac-continuous-macos11.dmg"
+  local tmp_dir=""
+  local dmg_path=""
+  local mount_point=""
+  local app_path=""
+
+  tmp_dir="$(mktemp -d)"
+  dmg_path="${tmp_dir}/freac-continuous.dmg"
+  mount_point="${tmp_dir}/mnt"
+
+  cleanup_freac_installer() {
+    if [[ -d "${mount_point}" ]] && mount | grep -Fq "on ${mount_point} "; then
+      hdiutil detach "${mount_point}" >/dev/null 2>&1 || true
+    fi
+    rm -rf "${tmp_dir}"
+  }
+
+  trap cleanup_freac_installer RETURN
+
+  echo "Downloading fre:ac continuous build..."
+  curl -fL --retry 3 --connect-timeout 20 -o "${dmg_path}" "${download_url}"
+
+  mkdir -p "${mount_point}"
+  hdiutil attach "${dmg_path}" -nobrowse -mountpoint "${mount_point}" >/dev/null
+
+  app_path="$(find "${mount_point}" -maxdepth 2 -type d -name '*.app' | head -n 1)"
+  if [[ -z "${app_path}" ]]; then
+    echo "Could not locate fre:ac app bundle in mounted image." >&2
+    return 1
+  fi
+
+  echo "Installing $(basename "${app_path}") to /Applications..."
+  ditto "${app_path}" "/Applications/$(basename "${app_path}")"
+  echo "Installed fre:ac continuous build."
+}
+
 while read -r cask_token; do
   [[ -z "${cask_token}" || "${cask_token:0:1}" == "#" ]] && continue
 
   read -r -p "Install optional cask '${cask_token}'? [y/N] " reply
   case "${reply}" in
     y|Y|yes|YES)
-      brew install --cask "${cask_token}"
+      if [[ "${cask_token}" == "freac-continuous" ]]; then
+        install_freac_continuous
+      else
+        brew install --cask "${cask_token}"
+      fi
       ;;
     *)
       ;;

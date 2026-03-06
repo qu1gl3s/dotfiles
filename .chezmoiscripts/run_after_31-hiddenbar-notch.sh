@@ -1,0 +1,59 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_after_31-hiddenbar-notch.sh
+# Purpose: Install HiddenBar only on Apple Silicon MacBooks with a notched display era profile.
+# Prerequisites: macOS, Homebrew available in /opt/homebrew.
+# Env flags: CHEZMOI_SKIP_BREW=1 skips this script.
+# Failure behavior: exits non-zero if Homebrew is unavailable when required.
+
+if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
+  echo "Skipping HiddenBar notch check because CHEZMOI_SKIP_BREW=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+
+if ! command -v brew >/dev/null 2>&1; then
+  echo "Homebrew is required for HiddenBar installation but was not found." >&2
+  exit 1
+fi
+
+model_name="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Model Name/ {print $2; exit}')"
+chip_name="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Chip/ {print $2; exit}')"
+
+has_notch=0
+case "${model_name}" in
+  "MacBook Air")
+    if [[ "${chip_name}" != "Apple M1" ]]; then
+      has_notch=1
+    fi
+    ;;
+  "MacBook Pro")
+    if [[ "${chip_name}" != "Apple M1" && "${chip_name}" != "Apple M2" ]]; then
+      has_notch=1
+    fi
+    ;;
+  *)
+    has_notch=0
+    ;;
+esac
+
+if [[ "${has_notch}" -ne 1 ]]; then
+  echo "Skipping HiddenBar install; notch not detected for model '${model_name:-unknown}' (chip '${chip_name:-unknown}')."
+  exit 0
+fi
+
+if brew list --cask hiddenbar >/dev/null 2>&1; then
+  echo "HiddenBar already installed."
+  exit 0
+fi
+
+echo "Installing HiddenBar (notch-capable model detected)."
+brew install --cask hiddenbar

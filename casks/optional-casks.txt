@@ -6,7 +6,7 @@ audacity
 backblaze
 balenaetcher
 discord
-freac
+freac-continuous
 handbrake-app
 localsend
 logi-options+

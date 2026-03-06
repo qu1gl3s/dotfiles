@@ -33,8 +33,14 @@ License: MIT. See `LICENSE`.
 Core package convergence is handled by:
 
 - `.chezmoiscripts/run_onchange_after_30-brew-bundle.sh.tmpl`
+- `.chezmoiscripts/run_after_31-hiddenbar-notch.sh`
 
 This script template embeds `Brewfile`/`Brewfile.optional` hashes, so it re-runs automatically when those files change.
+
+HiddenBar policy:
+
+- Installed only on notch-capable MacBooks (detected from model/chip profile).
+- Skipped on desktops and non-notch Apple Silicon laptop profiles.
 
 Mac App Store apps are handled by:
 
@@ -104,6 +110,7 @@ bash "${HOME}/.local/share/chezmoi/.chezmoiscripts/run_once_after_35-optional-ca
 
 Optional casks are prompted one time per machine from `casks/optional-casks.txt`.
 In non-interactive sessions (no TTY), optional cask prompts are skipped.
+`freac-continuous` is handled as a direct DMG install from the fre:ac continuous release channel (not a Homebrew cask token).
 
 ## macOS settings baseline
 
@@ -360,6 +367,7 @@ Reserved slots:
 - `10`: OS/system prerequisites
 - `20`: toolchain/bootstrap prerequisites
 - `30`: package manager actions (`brew bundle`)
+- `31`: conditional package installs (for example notch-only HiddenBar)
 - `34`: Mac App Store installs (`mas`)
 - `36`: direct third-party installers (Microsoft Defender consumer)
 - `37`: recurring interactive app configuration (WireGuard)
