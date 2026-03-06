@@ -1,0 +1,202 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_37-wireguard-config.sh.tmpl
+# Purpose: Offer interactive WireGuard tunnel setup and re-prompt until configured.
+# Prerequisites: macOS and WireGuard app installed from the Mac App Store.
+# Env flags:
+#   CHEZMOI_SKIP_BREW=1 skips this script
+#   CHEZMOI_SKIP_MAS=1 skips this script
+#   CHEZMOI_SKIP_WIREGUARD_SETUP=1 skips this script
+# Failure behavior: exits non-zero only when the user chooses setup and required writes fail.
+# Trigger hash (configured state): {{ output "bash" "-lc" "if scutil --nc list 2>/dev/null | grep -Eq '\\(com\\.wireguard\\.macos\\)|\\[VPN:com\\.wireguard\\.macos\\]'; then echo configured; elif [ -f \"$HOME/.local/state/chezmoi/wireguard-configured\" ]; then echo configured; else echo \"unconfigured-$(date +%s)\"; fi" | sha256sum }}
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
+  echo "Skipping WireGuard setup because CHEZMOI_SKIP_BREW=1"
+  exit 0
+fi
+
+if [[ "${CHEZMOI_SKIP_MAS:-0}" == "1" ]]; then
+  echo "Skipping WireGuard setup because CHEZMOI_SKIP_MAS=1"
+  exit 0
+fi
+
+if [[ "${CHEZMOI_SKIP_WIREGUARD_SETUP:-0}" == "1" ]]; then
+  echo "Skipping WireGuard setup because CHEZMOI_SKIP_WIREGUARD_SETUP=1"
+  exit 0
+fi
+
+WIREGUARD_APP="/Applications/WireGuard.app"
+WIREGUARD_BUNDLE_ID="com.wireguard.macos"
+WIREGUARD_CONF_DIR="${HOME}/.config/wireguard"
+WIREGUARD_STATE_DIR="${HOME}/.local/state/chezmoi"
+WIREGUARD_MARKER_FILE="${WIREGUARD_STATE_DIR}/wireguard-configured"
+WIREGUARD_SCUTIL_SENTINEL="scutil-detected"
+
+read_required() {
+  local prompt="$1"
+  local result_var="$2"
+  local value=""
+
+  while [[ -z "${value}" ]]; do
+    read -r -p "${prompt}" value
+  done
+
+  printf -v "${result_var}" '%s' "${value}"
+}
+
+mark_configured() {
+  local config_path="$1"
+  mkdir -p "${WIREGUARD_STATE_DIR}"
+  printf '%s\n' "${config_path}" > "${WIREGUARD_MARKER_FILE}"
+  echo "WireGuard marked configured using ${config_path}."
+}
+
+wireguard_tunnel_count_from_scutil() {
+  local scutil_output=""
+  scutil_output="$(scutil --nc list 2>/dev/null || true)"
+  grep -cE '\(com\.wireguard\.macos\)|\[VPN:com\.wireguard\.macos\]' <<<"${scutil_output}" || true
+}
+
+is_marker_valid() {
+  if [[ ! -f "${WIREGUARD_MARKER_FILE}" ]]; then
+    return 1
+  fi
+
+  local marked_path=""
+  marked_path="$(head -n 1 "${WIREGUARD_MARKER_FILE}" 2>/dev/null || true)"
+  if [[ -z "${marked_path}" ]]; then
+    return 0
+  fi
+
+  if [[ "${marked_path}" == "${WIREGUARD_SCUTIL_SENTINEL}" ]]; then
+    return 0
+  fi
+
+  [[ -f "${marked_path}" ]]
+}
+
+if [[ ! -d "${WIREGUARD_APP}" ]]; then
+  echo "WireGuard app not installed yet; skipping WireGuard setup prompt."
+  exit 0
+fi
+
+bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${WIREGUARD_APP}/Contents/Info.plist" 2>/dev/null || true)"
+if [[ "${bundle_id}" != "${WIREGUARD_BUNDLE_ID}" ]]; then
+  echo "Unexpected WireGuard bundle id at ${WIREGUARD_APP}; expected ${WIREGUARD_BUNDLE_ID}, found ${bundle_id:-<unset>}." >&2
+  exit 1
+fi
+
+wireguard_tunnel_count="$(wireguard_tunnel_count_from_scutil)"
+if [[ "${wireguard_tunnel_count}" -gt 0 ]]; then
+  if is_marker_valid; then
+    exit 0
+  fi
+  mark_configured "${WIREGUARD_SCUTIL_SENTINEL}"
+  echo "WireGuard detected existing tunnel services and marked setup as configured."
+  exit 0
+fi
+
+if is_marker_valid; then
+  exit 0
+fi
+
+if [[ ! -t 0 || ! -t 1 ]]; then
+  echo "WireGuard is installed but not configured; rerun chezmoi apply in an interactive shell to configure."
+  exit 0
+fi
+
+mkdir -p "${WIREGUARD_CONF_DIR}"
+
+existing_conf="$(find "${WIREGUARD_CONF_DIR}" -maxdepth 1 -type f -name '*.conf' | sort | head -n 1 || true)"
+if [[ -n "${existing_conf}" && ! -f "${WIREGUARD_MARKER_FILE}" ]]; then
+  read -r -p "Found existing WireGuard config (${existing_conf}). Mark as configured and stop prompts? [y/N] " mark_existing
+  case "${mark_existing}" in
+    [yY]|[yY][eE][sS])
+      mark_configured "${existing_conf}"
+      exit 0
+      ;;
+  esac
+fi
+
+read -r -p "WireGuard is installed but not configured. Configure now? [y/N] " configure_now
+case "${configure_now}" in
+  [yY]|[yY][eE][sS])
+    ;;
+  *)
+    echo "Skipping WireGuard setup for now. You will be prompted again on next chezmoi apply."
+    exit 0
+    ;;
+esac
+
+tunnel_name="wg0"
+read -r -p "Tunnel name [wg0]: " tunnel_name_input
+if [[ -n "${tunnel_name_input}" ]]; then
+  tunnel_name="${tunnel_name_input}"
+fi
+
+interface_private_key=""
+interface_address=""
+interface_dns=""
+peer_public_key=""
+peer_preshared_key=""
+peer_allowed_ips=""
+peer_endpoint=""
+peer_persistent_keepalive=""
+
+read_required "Interface PrivateKey: " interface_private_key
+read_required "Interface Address (comma-separated if multiple): " interface_address
+read -r -p "Interface DNS (optional, comma-separated): " interface_dns
+read_required "Peer PublicKey: " peer_public_key
+read -r -p "Peer PresharedKey (optional): " peer_preshared_key
+read_required "Peer AllowedIPs (for full tunnel use 0.0.0.0/0, ::/0): " peer_allowed_ips
+read_required "Peer Endpoint (host:port): " peer_endpoint
+read -r -p "Peer PersistentKeepalive (optional, e.g. 25): " peer_persistent_keepalive
+
+safe_tunnel_name="${tunnel_name// /-}"
+tunnel_path="${WIREGUARD_CONF_DIR}/${safe_tunnel_name}.conf"
+
+{
+  echo "[Interface]"
+  echo "PrivateKey = ${interface_private_key}"
+  echo "Address = ${interface_address}"
+  if [[ -n "${interface_dns}" ]]; then
+    echo "DNS = ${interface_dns}"
+  fi
+  echo
+  echo "[Peer]"
+  echo "PublicKey = ${peer_public_key}"
+  if [[ -n "${peer_preshared_key}" ]]; then
+    echo "PresharedKey = ${peer_preshared_key}"
+  fi
+  echo "AllowedIPs = ${peer_allowed_ips}"
+  echo "Endpoint = ${peer_endpoint}"
+  if [[ -n "${peer_persistent_keepalive}" ]]; then
+    echo "PersistentKeepalive = ${peer_persistent_keepalive}"
+  fi
+} > "${tunnel_path}"
+
+chmod 600 "${tunnel_path}"
+echo "Wrote WireGuard tunnel config: ${tunnel_path}"
+
+if command -v open >/dev/null 2>&1; then
+  if open -a "${WIREGUARD_APP}" "${tunnel_path}" >/dev/null 2>&1; then
+    echo "Opened WireGuard with ${tunnel_path}. Import/enable the tunnel in the app."
+  else
+    echo "Could not auto-open WireGuard for import; open ${tunnel_path} manually in WireGuard." >&2
+  fi
+fi
+
+read -r -p "Mark WireGuard as configured now? [y/N] " mark_done
+case "${mark_done}" in
+  [yY]|[yY][eE][sS])
+    mark_configured "${tunnel_path}"
+    ;;
+  *)
+    echo "WireGuard not marked configured yet. You will be prompted again on next chezmoi apply."
+    ;;
+esac

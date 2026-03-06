@@ -1,0 +1,189 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_47-privileged-system.sh.tmpl
+# Purpose: Apply privileged security/power settings with sudo only when drift exists.
+# Prerequisites: macOS, sudo access for privileged writes.
+# Env flags:
+#   CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1 skips this script
+#   CHEZMOI_SKIP_MACOS_DEFAULTS=1 also skips this script
+# Failure behavior: exits non-zero when privileged drift exists but sudo escalation cannot be completed.
+# Trigger hash (privileged state): {{ output "bash" "-lc" "fw=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null || true); st=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode 2>/dev/null || true); ap=$(defaults read com.apple.screensaver askForPassword 2>/dev/null || echo unset); ad=$(defaults read com.apple.screensaver askForPasswordDelay 2>/dev/null || echo unset); pb=$(pmset -g custom 2>/dev/null | awk \"BEGIN{s=0} /^Battery Power:/{s=1;next} /^AC Power:/{s=0} s && \\$1==\\\"displaysleep\\\"{print \\$2; exit}\"); pc=$(pmset -g custom 2>/dev/null | awk \"BEGIN{s=0} /^AC Power:/{s=1;next} s && \\$1==\\\"displaysleep\\\"{print \\$2; exit}\"); if ioreg -rd1 -c AppleBiometricServices >/dev/null 2>&1; then if grep -Eq \"^[[:space:]]*auth[[:space:]]+sufficient[[:space:]]+pam_tid\\\\.so\" /etc/pam.d/sudo_local 2>/dev/null; then td=enabled; else td=missing; fi; else td=na; fi; printf \"%s|%s|%s|%s|%s|%s|%s\" \"$fw\" \"$st\" \"$ap\" \"$ad\" \"${pb:-unset}\" \"${pc:-unset}\" \"$td\"" | sha256sum }}
+
+if [[ "${CHEZMOI_SKIP_PRIVILEGED_SYSTEM:-0}" == "1" ]]; then
+  echo "Skipping privileged system settings because CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1"
+  exit 0
+fi
+
+if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
+  echo "Skipping privileged system settings because CHEZMOI_SKIP_MACOS_DEFAULTS=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+expected_ask_for_password="1"
+expected_ask_for_password_delay="0"
+expected_display_sleep_battery="10"
+expected_display_sleep_ac="60"
+
+applied_changes=0
+needs_sudo=0
+
+need_firewall_enable=0
+need_stealth_on=0
+need_pmset_battery=0
+need_pmset_ac=0
+need_touchid=0
+touchid_available=0
+
+pmset_displaysleep_value() {
+  local profile="$1"
+  local pmset_output="$2"
+
+  case "${profile}" in
+    battery)
+      awk '
+        /^Battery Power:/ { section="battery"; next }
+        /^AC Power:/ { section="" }
+        section == "battery" && $1 == "displaysleep" { print $2; exit }
+      ' <<< "${pmset_output}"
+      ;;
+    ac)
+      awk '
+        /^AC Power:/ { section="ac"; next }
+        section == "ac" && $1 == "displaysleep" { print $2; exit }
+      ' <<< "${pmset_output}"
+      ;;
+  esac
+}
+
+has_pam_tid() {
+  local content="$1"
+  grep -Eq '^[[:space:]]*auth[[:space:]]+sufficient[[:space:]]+pam_tid\.so' <<< "${content}"
+}
+
+# Non-privileged defaults writes (screensaver prompt settings)
+current_ask_for_password="$(defaults read com.apple.screensaver askForPassword 2>/dev/null || echo "<unset>")"
+if [[ "${current_ask_for_password}" != "${expected_ask_for_password}" ]]; then
+  defaults write com.apple.screensaver askForPassword -int "${expected_ask_for_password}"
+  echo "Applied com.apple.screensaver askForPassword=${expected_ask_for_password}"
+  applied_changes=1
+fi
+
+current_ask_for_password_delay="$(defaults read com.apple.screensaver askForPasswordDelay 2>/dev/null || echo "<unset>")"
+if [[ "${current_ask_for_password_delay}" != "${expected_ask_for_password_delay}" ]]; then
+  defaults write com.apple.screensaver askForPasswordDelay -float "${expected_ask_for_password_delay}"
+  echo "Applied com.apple.screensaver askForPasswordDelay=${expected_ask_for_password_delay}"
+  applied_changes=1
+fi
+
+# Privileged drift detection
+firewall_state="$("/usr/libexec/ApplicationFirewall/socketfilterfw" --getglobalstate 2>/dev/null || true)"
+if ! grep -qi "enabled" <<< "${firewall_state}"; then
+  need_firewall_enable=1
+  needs_sudo=1
+fi
+
+stealth_state="$("/usr/libexec/ApplicationFirewall/socketfilterfw" --getstealthmode 2>/dev/null || true)"
+if ! grep -qi "on" <<< "${stealth_state}"; then
+  need_stealth_on=1
+  needs_sudo=1
+fi
+
+pmset_output="$(pmset -g custom 2>/dev/null || true)"
+current_display_sleep_battery="$(pmset_displaysleep_value battery "${pmset_output}")"
+current_display_sleep_ac="$(pmset_displaysleep_value ac "${pmset_output}")"
+
+if [[ -z "${current_display_sleep_battery:-}" ]]; then
+  echo "Could not read battery displaysleep without sudo; skipping battery drift check."
+elif [[ "${current_display_sleep_battery}" != "${expected_display_sleep_battery}" ]]; then
+  need_pmset_battery=1
+  needs_sudo=1
+fi
+
+if [[ -z "${current_display_sleep_ac:-}" ]]; then
+  echo "Could not read AC displaysleep without sudo; skipping AC drift check."
+elif [[ "${current_display_sleep_ac}" != "${expected_display_sleep_ac}" ]]; then
+  need_pmset_ac=1
+  needs_sudo=1
+fi
+
+if ioreg -rd1 -c AppleBiometricServices >/dev/null 2>&1; then
+  touchid_available=1
+  sudo_local_content="$(cat /etc/pam.d/sudo_local 2>/dev/null || true)"
+  if ! has_pam_tid "${sudo_local_content}"; then
+    need_touchid=1
+    needs_sudo=1
+  fi
+else
+  echo "Touch ID hardware not detected; skipping Touch ID sudo configuration."
+fi
+
+if [[ "${needs_sudo}" -eq 1 ]]; then
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    cat >&2 <<'EOF'
+Privileged system drift detected but no interactive TTY is available for sudo.
+Re-run in an interactive shell, or skip with:
+  CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1 chezmoi apply
+EOF
+    exit 1
+  fi
+
+  if ! sudo -v; then
+    echo "Unable to obtain sudo credentials for privileged system settings." >&2
+    exit 1
+  fi
+
+  if [[ "${need_firewall_enable}" -eq 1 ]]; then
+    sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on >/dev/null
+    echo "Applied firewall global state: enabled"
+    applied_changes=1
+  fi
+
+  if [[ "${need_stealth_on}" -eq 1 ]]; then
+    sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setstealthmode on >/dev/null
+    echo "Applied firewall stealth mode: on"
+    applied_changes=1
+  fi
+
+  if [[ "${need_pmset_battery}" -eq 1 ]]; then
+    sudo pmset -b displaysleep "${expected_display_sleep_battery}" >/dev/null
+    echo "Applied pmset battery displaysleep=${expected_display_sleep_battery}"
+    applied_changes=1
+  fi
+
+  if [[ "${need_pmset_ac}" -eq 1 ]]; then
+    sudo pmset -c displaysleep "${expected_display_sleep_ac}" >/dev/null
+    echo "Applied pmset AC displaysleep=${expected_display_sleep_ac}"
+    applied_changes=1
+  fi
+
+  if [[ "${touchid_available}" -eq 1 && "${need_touchid}" -eq 1 ]]; then
+    tmp_sudo_local="$(mktemp)"
+    existing_sudo_local="$(sudo cat /etc/pam.d/sudo_local 2>/dev/null || true)"
+
+    if [[ -n "${existing_sudo_local}" ]]; then
+      printf '%s\n' "${existing_sudo_local}" > "${tmp_sudo_local}"
+    else
+      cat > "${tmp_sudo_local}" <<'EOF'
+# sudo_local: local config file which survives system update and is included for sudo
+EOF
+    fi
+
+    if ! has_pam_tid "$(cat "${tmp_sudo_local}")"; then
+      printf '%s\n' "auth       sufficient     pam_tid.so" >> "${tmp_sudo_local}"
+    fi
+
+    sudo install -m 0444 -o root -g wheel "${tmp_sudo_local}" /etc/pam.d/sudo_local
+    rm -f "${tmp_sudo_local}"
+    echo "Applied Touch ID for sudo in /etc/pam.d/sudo_local"
+    applied_changes=1
+  fi
+fi
+
+if [[ "${applied_changes}" -eq 0 ]]; then
+  echo "Privileged system settings already aligned."
+fi

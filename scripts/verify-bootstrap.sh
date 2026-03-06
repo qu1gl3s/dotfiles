@@ -6,6 +6,11 @@ BREWFILE="${SOURCE_DIR}/Brewfile"
 MAS_REQUIRED_FILE="${SOURCE_DIR}/mas/apps.txt"
 MAS_OPTIONAL_FILE="${SOURCE_DIR}/mas/optional-apps.txt"
 DOCK_ORDER_FILE="${SOURCE_DIR}/macos/dock-app-order.txt"
+DEFENDER_BUNDLE_ID="com.microsoft.wdav"
+WIREGUARD_APP_PATH="/Applications/WireGuard.app"
+WIREGUARD_BUNDLE_ID="com.wireguard.macos"
+WIREGUARD_MARKER_FILE="${HOME}/.local/state/chezmoi/wireguard-configured"
+WIREGUARD_SCUTIL_SENTINEL="scutil-detected"
 
 PASS_COUNT=0
 WARN_COUNT=0
@@ -87,6 +92,86 @@ check_default_equals() {
   else
     fail "defaults ${domain} ${key} expected ${expected}, found ${current}"
   fi
+}
+
+pmset_displaysleep_value() {
+  local profile="$1"
+  local pmset_output="$2"
+
+  case "${profile}" in
+    battery)
+      awk '
+        /^Battery Power:/ { section="battery"; next }
+        /^AC Power:/ { section="" }
+        section == "battery" && $1 == "displaysleep" { print $2; exit }
+      ' <<< "${pmset_output}"
+      ;;
+    ac)
+      awk '
+        /^AC Power:/ { section="ac"; next }
+        section == "ac" && $1 == "displaysleep" { print $2; exit }
+      ' <<< "${pmset_output}"
+      ;;
+  esac
+}
+
+touchid_available() {
+  ioreg -rd1 -c AppleBiometricServices >/dev/null 2>&1
+}
+
+sudo_local_contains_pam_tid() {
+  grep -Eq '^[[:space:]]*auth[[:space:]]+sufficient[[:space:]]+pam_tid\.so' /etc/pam.d/sudo_local 2>/dev/null
+}
+
+is_defender_installed() {
+  local app_path=""
+  local bundle_id=""
+
+  for app_path in "/Applications/Microsoft Defender.app" "/Applications/Defender.app"; do
+    if [[ -d "${app_path}" ]]; then
+      bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app_path}/Contents/Info.plist" 2>/dev/null || true)"
+      if [[ "${bundle_id}" == "${DEFENDER_BUNDLE_ID}" ]]; then
+        return 0
+      fi
+    fi
+  done
+
+  return 1
+}
+
+is_wireguard_installed() {
+  local bundle_id=""
+
+  if [[ ! -d "${WIREGUARD_APP_PATH}" ]]; then
+    return 1
+  fi
+
+  bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${WIREGUARD_APP_PATH}/Contents/Info.plist" 2>/dev/null || true)"
+  [[ "${bundle_id}" == "${WIREGUARD_BUNDLE_ID}" ]]
+}
+
+wireguard_tunnel_count_from_scutil() {
+  local scutil_output=""
+  scutil_output="$(scutil --nc list 2>/dev/null || true)"
+  grep -cE '\(com\.wireguard\.macos\)|\[VPN:com\.wireguard\.macos\]' <<<"${scutil_output}" || true
+}
+
+is_wireguard_marker_valid() {
+  if [[ ! -f "${WIREGUARD_MARKER_FILE}" ]]; then
+    return 1
+  fi
+
+  local marker_path=""
+  marker_path="$(head -n 1 "${WIREGUARD_MARKER_FILE}" 2>/dev/null || true)"
+  if [[ -z "${marker_path}" ]]; then
+    return 0
+  fi
+
+  if [[ "${marker_path}" == "${WIREGUARD_SCUTIL_SENTINEL}" ]]; then
+    return 0
+  fi
+
+  [[ -f "${marker_path}" ]]
 }
 
 parse_displayplacer_builtin() {
@@ -276,6 +361,37 @@ else
   done < "${MAS_OPTIONAL_FILE}"
 fi
 
+section "WireGuard setup"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  warn "Skipping WireGuard setup checks on non-macOS host"
+elif is_wireguard_installed; then
+  pass "WireGuard app detected"
+  wireguard_tunnel_count="$(wireguard_tunnel_count_from_scutil)"
+  if [[ "${wireguard_tunnel_count}" -gt 0 ]]; then
+    pass "WireGuard tunnel services detected in macOS VPN services (${wireguard_tunnel_count})"
+  elif is_wireguard_marker_valid; then
+    marker_path="$(head -n 1 "${WIREGUARD_MARKER_FILE}" 2>/dev/null || true)"
+    if [[ "${marker_path}" == "${WIREGUARD_SCUTIL_SENTINEL}" || -z "${marker_path}" ]]; then
+      pass "WireGuard setup marker present"
+    else
+      pass "WireGuard configured marker points to ${marker_path}"
+    fi
+  else
+    warn "WireGuard is installed but no tunnel configuration was detected yet."
+  fi
+else
+  fail "WireGuard app not detected at ${WIREGUARD_APP_PATH}"
+fi
+
+section "Microsoft Defender"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  warn "Skipping Microsoft Defender checks on non-macOS host"
+elif is_defender_installed; then
+  pass "Microsoft Defender for Consumers app detected"
+else
+  fail "Microsoft Defender for Consumers app not detected (bundle id ${DEFENDER_BUNDLE_ID})"
+fi
+
 section "Screenshot guard"
 if [[ "$(uname -s)" != "Darwin" ]]; then
   warn "Skipping screenshot checks on non-macOS host"
@@ -343,6 +459,18 @@ else
   fi
 fi
 
+section "Menu bar clock"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  warn "Skipping menu bar clock checks on non-macOS host"
+else
+  check_default_equals "NSGlobalDomain" "AppleICUForce24HourTime" "1"
+  check_default_equals "com.apple.menuextra.clock" "IsAnalog" "0"
+  check_default_equals "com.apple.menuextra.clock" "ShowDayOfWeek" "1"
+  check_default_equals "com.apple.menuextra.clock" "ShowDate" "1"
+  check_default_equals "com.apple.menuextra.clock" "ShowAMPM" "0"
+  check_default_equals "com.apple.ControlCenter" "NSStatusItem VisibleCC Clock" "1"
+fi
+
 section "Privacy audit"
 PRIVACY_SCRIPT="${SOURCE_DIR}/scripts/verify-privacy.sh"
 if [[ ! -f "${PRIVACY_SCRIPT}" ]]; then
@@ -366,9 +494,66 @@ section "macOS settings spot-check"
 if [[ "$(uname -s)" != "Darwin" ]]; then
   warn "Skipping macOS defaults checks on non-macOS host"
 else
-  check_default_equals "com.apple.desktopservices" "DSDontWriteNetworkStores" "1"
-  check_default_equals "NSGlobalDomain" "com.apple.swipescrolldirection" "0"
-  check_default_equals "com.apple.WindowManager" "EnableStandardClickToShowDesktop" "0"
+  check_default_equals "NSGlobalDomain" "AppleAccentColor" "3"
+  check_default_equals "NSGlobalDomain" "AppleHighlightColor" "0.752941 0.964706 0.678431 Green"
+fi
+
+section "Privileged security/power"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  warn "Skipping privileged security/power checks on non-macOS host"
+else
+  firewall_state="$("/usr/libexec/ApplicationFirewall/socketfilterfw" --getglobalstate 2>/dev/null || true)"
+  if grep -qi "enabled" <<< "${firewall_state}"; then
+    pass "Firewall global state is enabled"
+  else
+    fail "Firewall global state is not enabled"
+  fi
+
+  stealth_state="$("/usr/libexec/ApplicationFirewall/socketfilterfw" --getstealthmode 2>/dev/null || true)"
+  if grep -qi "on" <<< "${stealth_state}"; then
+    pass "Firewall stealth mode is on"
+  else
+    fail "Firewall stealth mode is not on"
+  fi
+
+  check_default_equals "com.apple.screensaver" "askForPassword" "1"
+
+  ask_for_password_delay="$(defaults read com.apple.screensaver askForPasswordDelay 2>/dev/null || true)"
+  if [[ "${ask_for_password_delay}" == "0" || "${ask_for_password_delay}" == "0.0" ]]; then
+    pass "defaults com.apple.screensaver askForPasswordDelay=0"
+  else
+    fail "defaults com.apple.screensaver askForPasswordDelay expected 0, found ${ask_for_password_delay:-<unset>}"
+  fi
+
+  pmset_output="$(pmset -g custom 2>/dev/null || true)"
+  pmset_battery="$(pmset_displaysleep_value battery "${pmset_output}")"
+  pmset_ac="$(pmset_displaysleep_value ac "${pmset_output}")"
+
+  if [[ -z "${pmset_battery:-}" ]]; then
+    warn "pmset battery displaysleep could not be read without sudo"
+  elif [[ "${pmset_battery}" == "10" ]]; then
+    pass "pmset battery displaysleep=10"
+  else
+    fail "pmset battery displaysleep expected 10, found ${pmset_battery}"
+  fi
+
+  if [[ -z "${pmset_ac:-}" ]]; then
+    warn "pmset AC displaysleep could not be read without sudo"
+  elif [[ "${pmset_ac}" == "60" ]]; then
+    pass "pmset AC displaysleep=60"
+  else
+    fail "pmset AC displaysleep expected 60, found ${pmset_ac}"
+  fi
+
+  if touchid_available; then
+    if sudo_local_contains_pam_tid; then
+      pass "Touch ID sudo config present in /etc/pam.d/sudo_local"
+    else
+      fail "Touch ID hardware detected but pam_tid.so is missing in /etc/pam.d/sudo_local"
+    fi
+  else
+    warn "Touch ID hardware not detected; skipping sudo Touch ID check"
+  fi
 fi
 
 section "Dock baseline"

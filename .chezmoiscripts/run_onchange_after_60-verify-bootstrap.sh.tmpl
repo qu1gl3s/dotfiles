@@ -13,8 +13,11 @@ set -euo pipefail
 # Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
 # Trigger hash (macos/dock-app-order.txt): {{ include "macos/dock-app-order.txt" | sha256sum }}
 # Trigger hash (macos/settings-baseline.sh): {{ include "macos/settings-baseline.sh" | sha256sum }}
+# Trigger hash (macos/clock-baseline.sh): {{ include "macos/clock-baseline.sh" | sha256sum }}
+# Trigger hash (47-privileged-system): {{ include ".chezmoiscripts/run_onchange_after_47-privileged-system.sh.tmpl" | sha256sum }}
 # Trigger hash (dot_gitconfig): {{ include "dot_gitconfig" | sha256sum }}
 # Trigger hash (private_dot_ssh/private_config): {{ include "private_dot_ssh/private_config" | sha256sum }}
+# Trigger hash (scripts/verify-bootstrap.sh): {{ include "scripts/verify-bootstrap.sh" | sha256sum }}
 # Trigger hash (scripts/verify-privacy.sh): {{ include "scripts/verify-privacy.sh" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_VERIFY:-0}" == "1" ]]; then
