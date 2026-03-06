@@ -112,6 +112,7 @@ Allowlisted UI settings are applied by default via:
 - `.chezmoiscripts/run_onchange_after_40-macos-defaults.sh`
 - `.chezmoiscripts/run_onchange_after_41-screenshot-location.sh`
 - `.chezmoiscripts/run_onchange_after_43-menu-bar-clock.sh`
+- `.chezmoiscripts/run_onchange_after_44-textedit.sh`
 - `.chezmoiscripts/run_onchange_after_47-privileged-system.sh.tmpl`
 - `macos/settings-baseline.sh`
 
@@ -207,6 +208,26 @@ Notes:
 - `ShowDate` is enum-based on modern macOS (`1` means always show date).
 - With 24-hour mode enabled, AM/PM is suppressed visually.
 
+### TextEdit defaults
+
+TextEdit defaults are enforced separately via:
+
+- `macos/textedit-baseline.sh`
+- `.chezmoiscripts/run_onchange_after_44-textedit.sh`
+
+Enforced values:
+
+- `com.apple.TextEdit RichText=0` (plain text by default)
+- `com.apple.TextEdit PlainTextEncoding=4` (UTF-8)
+- `com.apple.TextEdit PlainTextEncodingForWrite=4` (UTF-8)
+- `com.apple.TextEdit CheckSpellingWhileTyping=0`
+- `com.apple.TextEdit CheckGrammarWithSpelling=0`
+- `com.apple.TextEdit CorrectSpellingAutomatically=0`
+
+Scope:
+
+- TextEdit-only behavior; global typing/spelling defaults are intentionally not changed.
+
 ## Display scaling (More Space)
 
 Built-in display scaling is enforced by:
@@ -284,6 +305,7 @@ Verification checks:
 - Synology screenshot guard conditions and current screenshot path
 - built-in display scaling state (`scaling:on` + expected More Space target mode)
 - menu bar clock/date settings
+- TextEdit plain text/spell settings
 - minimal macOS defaults spot-checks (accent/highlight)
 - privileged security/power checks (firewall, screensaver lock settings, pmset, Touch ID sudo when available)
 - Dock app presence checks from `macos/dock-app-order.txt` (excluding Finder)
@@ -345,6 +367,7 @@ Reserved slots:
 - `41`: screenshot location guard
 - `42`: built-in display scaling ("More Space")
 - `43`: menu bar clock/date
+- `44`: TextEdit plain text/spell defaults
 - `45`: appearance baseline
 - `47`: privileged security/power baseline
 - `50`: Dock layout baseline

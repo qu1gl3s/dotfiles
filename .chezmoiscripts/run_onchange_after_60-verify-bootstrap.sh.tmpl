@@ -14,6 +14,8 @@ set -euo pipefail
 # Trigger hash (macos/dock-app-order.txt): {{ include "macos/dock-app-order.txt" | sha256sum }}
 # Trigger hash (macos/settings-baseline.sh): {{ include "macos/settings-baseline.sh" | sha256sum }}
 # Trigger hash (macos/clock-baseline.sh): {{ include "macos/clock-baseline.sh" | sha256sum }}
+# Trigger hash (macos/textedit-baseline.sh): {{ include "macos/textedit-baseline.sh" | sha256sum }}
+# Trigger hash (44-textedit): {{ include ".chezmoiscripts/run_onchange_after_44-textedit.sh" | sha256sum }}
 # Trigger hash (47-privileged-system): {{ include ".chezmoiscripts/run_onchange_after_47-privileged-system.sh.tmpl" | sha256sum }}
 # Trigger hash (dot_gitconfig): {{ include "dot_gitconfig" | sha256sum }}
 # Trigger hash (private_dot_ssh/private_config): {{ include "private_dot_ssh/private_config" | sha256sum }}

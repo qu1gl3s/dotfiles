@@ -471,6 +471,18 @@ else
   check_default_equals "com.apple.ControlCenter" "NSStatusItem VisibleCC Clock" "1"
 fi
 
+section "TextEdit preferences"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  warn "Skipping TextEdit preference checks on non-macOS host"
+else
+  check_default_equals "com.apple.TextEdit" "RichText" "0"
+  check_default_equals "com.apple.TextEdit" "PlainTextEncoding" "4"
+  check_default_equals "com.apple.TextEdit" "PlainTextEncodingForWrite" "4"
+  check_default_equals "com.apple.TextEdit" "CheckSpellingWhileTyping" "0"
+  check_default_equals "com.apple.TextEdit" "CheckGrammarWithSpelling" "0"
+  check_default_equals "com.apple.TextEdit" "CorrectSpellingAutomatically" "0"
+fi
+
 section "Privacy audit"
 PRIVACY_SCRIPT="${SOURCE_DIR}/scripts/verify-privacy.sh"
 if [[ ! -f "${PRIVACY_SCRIPT}" ]]; then
