@@ -15,6 +15,7 @@ set -euo pipefail
 # Trigger hash (macos/settings-baseline.sh): {{ include "macos/settings-baseline.sh" | sha256sum }}
 # Trigger hash (dot_gitconfig): {{ include "dot_gitconfig" | sha256sum }}
 # Trigger hash (private_dot_ssh/private_config): {{ include "private_dot_ssh/private_config" | sha256sum }}
+# Trigger hash (scripts/verify-privacy.sh): {{ include "scripts/verify-privacy.sh" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_VERIFY:-0}" == "1" ]]; then
   echo "Skipping bootstrap verification because CHEZMOI_SKIP_VERIFY=1"

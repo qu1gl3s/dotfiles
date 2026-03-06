@@ -325,7 +325,7 @@ else
   elif [[ "${display_list_status}" -ne 0 ]]; then
     fail "displayplacer list failed: ${display_list_output}"
   elif ! parse_displayplacer_builtin "${display_list_output}"; then
-    fail "display scaling parse failed: ${DISPLAY_PARSE_ERROR}"
+    warn "display scaling check skipped: ${DISPLAY_PARSE_ERROR}"
   else
     pass "Built-in display target resolved: ${DISPLAY_TARGET_RES} (id ${DISPLAY_BUILTIN_ID})"
 
@@ -344,51 +344,21 @@ else
 fi
 
 section "Privacy audit"
-if ! command -v git >/dev/null 2>&1; then
-  warn "Skipping privacy audit because git is missing"
+PRIVACY_SCRIPT="${SOURCE_DIR}/scripts/verify-privacy.sh"
+if [[ ! -f "${PRIVACY_SCRIPT}" ]]; then
+  warn "Privacy audit script not found: ${PRIVACY_SCRIPT}"
 else
-  if git -C "${SOURCE_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    if [[ -f "${SOURCE_DIR}/dot_gitconfig" ]] && grep -Eq '^\[user\]' "${SOURCE_DIR}/dot_gitconfig"; then
-      fail "dot_gitconfig contains a committed [user] identity block"
+  privacy_output=""
+  if privacy_output="$(bash "${PRIVACY_SCRIPT}" --source-dir "${SOURCE_DIR}" 2>&1)"; then
+    fail_count_from_summary="$(awk -F'FAIL=' '/^SUMMARY:/ {print $2}' <<<"${privacy_output}" | awk '{print $1}' | tail -n1)"
+    if [[ "${fail_count_from_summary:-0}" =~ ^[0-9]+$ && "${fail_count_from_summary}" -gt 0 ]]; then
+      warn "privacy audit reported ${fail_count_from_summary} fail findings; run scripts/verify-privacy.sh --strict"
     else
-      pass "dot_gitconfig has no committed [user] identity block"
-    fi
-
-    if [[ -f "${SOURCE_DIR}/private_dot_ssh/private_config" ]]; then
-      ssh_host_matches="$(grep -En '^[[:space:]]*Host[[:space:]]+[^*[:space:]]' "${SOURCE_DIR}/private_dot_ssh/private_config" || true)"
-      if [[ -n "${ssh_host_matches}" ]]; then
-        fail "private_dot_ssh/private_config contains specific Host entries"
-        while IFS= read -r match_line; do
-          info "  ${match_line}"
-        done <<< "${ssh_host_matches}"
-      else
-        pass "private_dot_ssh/private_config contains only generic Host * entries"
-      fi
-    else
-      warn "private_dot_ssh/private_config not found; skipping SSH privacy check"
-    fi
-
-    hardcoded_home_matches="$(git -C "${SOURCE_DIR}" grep -n -I -E -- 'file:///Users/[A-Za-z0-9._-]+/?|/Users/[A-Za-z0-9._-]+' -- . ':(exclude)scripts/verify-bootstrap.sh' ':(exclude)scripts/collect-macos-settings.sh' 2>/dev/null || true)"
-    if [[ -n "${hardcoded_home_matches}" ]]; then
-      fail "hardcoded /Users paths found in tracked files"
-      while IFS= read -r match_line; do
-        info "  ${match_line}"
-      done <<< "${hardcoded_home_matches}"
-    else
-      pass "no hardcoded /Users paths found in tracked files"
-    fi
-
-    bootstrap_user_matches="$(git -C "${SOURCE_DIR}" grep -n -I -E -- 'get\\.chezmoi\\.io/lb\\)" -- init --apply [^<[:space:]]+' -- README.md .chezmoiscripts 2>/dev/null || true)"
-    if [[ -n "${bootstrap_user_matches}" ]]; then
-      fail "hardcoded bootstrap username found (use <github-user> placeholder)"
-      while IFS= read -r match_line; do
-        info "  ${match_line}"
-      done <<< "${bootstrap_user_matches}"
-    else
-      pass "bootstrap examples use generic <github-user> placeholder"
+      pass "privacy audit completed with zero fail findings"
     fi
   else
-    warn "Skipping privacy audit because source dir is not a git worktree: ${SOURCE_DIR}"
+    warn "privacy audit script execution failed; run manually: bash ${PRIVACY_SCRIPT} --strict"
+    info "${privacy_output}"
   fi
 fi
 

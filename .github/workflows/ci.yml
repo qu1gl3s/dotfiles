@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tooling
+        run: brew install chezmoi shellcheck
+
+      - name: Bash syntax checks
+        run: |
+          find .chezmoiscripts scripts -type f \( -name '*.sh' -o -name '*.sh.tmpl' \) -print0 \
+            | xargs -0 -n1 bash -n
+
+      - name: Shellcheck
+        run: |
+          find .chezmoiscripts scripts -type f \( -name '*.sh' -o -name '*.sh.tmpl' \) -print0 \
+            | xargs -0 -n1 shellcheck
+
+      - name: Chezmoi dry run
+        run: |
+          mkdir -p "${RUNNER_TEMP}/chezmoi-home"
+          chezmoi apply --source "${GITHUB_WORKSPACE}" --destination "${RUNNER_TEMP}/chezmoi-home" --dry-run
+
+      - name: Privacy verification (history strict)
+        run: bash scripts/verify-privacy.sh --source-dir "${GITHUB_WORKSPACE}" --history --strict

@@ -12,6 +12,8 @@ sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply <github-user>
 
 First run requires internet access and admin privileges.
 
+License: MIT. See `LICENSE`.
+
 ## What this repo manages
 
 - Shell: `~/.zshrc`, `~/.zprofile`, `~/.aliases`
@@ -208,6 +210,7 @@ Verification checks:
 - built-in display scaling state (`scaling:on` + expected More Space target mode)
 - high-signal macOS defaults spot-checks
 - Dock app presence checks from `macos/dock-app-order.txt` (excluding Finder)
+- delegated privacy audit summary from `scripts/verify-privacy.sh`
 
 Output format:
 
@@ -223,6 +226,24 @@ Manual run:
 
 ```sh
 bash ~/.local/share/chezmoi/scripts/verify-bootstrap.sh
+bash ~/.local/share/chezmoi/scripts/verify-privacy.sh --strict
+```
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on macOS and checks:
+
+- bash syntax for scripts/hooks
+- shellcheck for scripts/hooks
+- `chezmoi apply --dry-run` against a temporary destination
+- `scripts/verify-privacy.sh --history --strict`
+
+Optional local pre-commit checks:
+
+```sh
+find .chezmoiscripts scripts -type f \( -name '*.sh' -o -name '*.sh.tmpl' \) -print0 | xargs -0 -n1 bash -n
+shellcheck $(find .chezmoiscripts scripts -type f \( -name '*.sh' -o -name '*.sh.tmpl' \))
+bash ./scripts/verify-privacy.sh --strict
 ```
 
 ## `.chezmoiscripts` naming and order
