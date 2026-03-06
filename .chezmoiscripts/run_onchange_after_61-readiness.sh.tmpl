@@ -1,0 +1,36 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_61-readiness.sh.tmpl
+# Purpose: Run post-apply readiness checklist for manual follow-ups.
+# Prerequisites: scripts/verify-readiness.sh exists in source dir.
+# Env flags:
+#   CHEZMOI_SKIP_READINESS=1 skips this script
+#   CHEZMOI_READINESS_STRICT=1 makes readiness fail on pending TODO/FAIL items
+# Failure behavior: exits non-zero when verifier is missing or strict mode fails checks.
+# Trigger hash (scripts/verify-readiness.sh): {{ include "scripts/verify-readiness.sh" | sha256sum }}
+# Trigger hash (scripts/readiness-ack.sh): {{ include "scripts/readiness-ack.sh" | sha256sum }}
+# Trigger hash (mas/apps.txt): {{ include "mas/apps.txt" | sha256sum }}
+# Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
+# Trigger hash (wireguard hook): {{ include ".chezmoiscripts/run_onchange_after_37-wireguard-config.sh.tmpl" | sha256sum }}
+# Trigger hash (screenshot hook): {{ include ".chezmoiscripts/run_onchange_after_41-screenshot-location.sh" | sha256sum }}
+# Trigger hash (defender hook): {{ include ".chezmoiscripts/run_once_after_36-microsoft-defender-consumer.sh" | sha256sum }}
+
+if [[ "${CHEZMOI_SKIP_READINESS:-0}" == "1" ]]; then
+  echo "Skipping readiness checklist because CHEZMOI_SKIP_READINESS=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
+VERIFY_SCRIPT="${SOURCE_DIR}/scripts/verify-readiness.sh"
+
+if [[ ! -f "${VERIFY_SCRIPT}" ]]; then
+  echo "Readiness verification script not found: ${VERIFY_SCRIPT}" >&2
+  exit 1
+fi
+
+bash "${VERIFY_SCRIPT}"
