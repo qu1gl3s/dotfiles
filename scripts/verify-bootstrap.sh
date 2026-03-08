@@ -568,6 +568,60 @@ else
   fi
 fi
 
+section "System updates + FileVault"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  warn "Skipping FileVault/software update checks on non-macOS host"
+else
+  filevault_status="$(fdesetup status 2>/dev/null || true)"
+  if grep -Eq '^FileVault is On\.' <<< "${filevault_status}"; then
+    pass "FileVault is enabled"
+  else
+    fail "FileVault is not enabled"
+  fi
+
+  softwareupdate_schedule_output="$(softwareupdate --schedule 2>/dev/null || true)"
+  if grep -Eqi 'turned on' <<< "${softwareupdate_schedule_output}"; then
+    pass "softwareupdate automatic schedule is on"
+  else
+    fail "softwareupdate automatic schedule is not on"
+  fi
+
+  check_default_equals "/Library/Preferences/com.apple.SoftwareUpdate" "AutomaticDownload" "1"
+  check_default_equals "/Library/Preferences/com.apple.SoftwareUpdate" "ConfigDataInstall" "1"
+  check_default_equals "/Library/Preferences/com.apple.SoftwareUpdate" "CriticalUpdateInstall" "1"
+  check_default_equals "/Library/Preferences/com.apple.SoftwareUpdate" "AutomaticallyInstallMacOSUpdates" "1"
+  check_default_equals "/Library/Preferences/com.apple.commerce" "AutoUpdate" "1"
+fi
+
+section "Privacy minimization"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  warn "Skipping privacy-minimization checks on non-macOS host"
+else
+  check_default_equals "com.apple.AdLib" "allowApplePersonalizedAdvertising" "0"
+  check_default_equals "com.apple.assistant.support" "Assistant Enabled" "0"
+  check_default_equals "com.apple.assistant.support" "Dictation Enabled" "0"
+  check_default_equals "com.apple.Siri" "VoiceTriggerUserEnabled" "0"
+
+  analytics_plist="/Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist"
+  if [[ ! -f "${analytics_plist}" ]]; then
+    fail "CrashReporter analytics plist not found: ${analytics_plist}"
+  else
+    auto_submit_value="$(plutil -extract AutoSubmit raw -o - "${analytics_plist}" 2>/dev/null || true)"
+    if [[ "${auto_submit_value}" == "false" ]]; then
+      pass "CrashReporter AutoSubmit=false"
+    else
+      fail "CrashReporter AutoSubmit expected false, found ${auto_submit_value:-<unset>}"
+    fi
+
+    third_party_submit_value="$(plutil -extract ThirdPartyDataSubmit raw -o - "${analytics_plist}" 2>/dev/null || true)"
+    if [[ "${third_party_submit_value}" == "false" ]]; then
+      pass "CrashReporter ThirdPartyDataSubmit=false"
+    else
+      fail "CrashReporter ThirdPartyDataSubmit expected false, found ${third_party_submit_value:-<unset>}"
+    fi
+  fi
+fi
+
 section "Dock baseline"
 if [[ ! -f "${DOCK_ORDER_FILE}" ]]; then
   fail "Dock order file not found: ${DOCK_ORDER_FILE}"

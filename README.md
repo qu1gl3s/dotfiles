@@ -43,12 +43,29 @@ Notes:
 - `.chezmoiscripts/run_onchange_after_44-textedit.sh`
 - `.chezmoiscripts/run_onchange_after_45-appearance.sh`
 - `.chezmoiscripts/run_onchange_after_47-privileged-system.sh.tmpl`
+- `.chezmoiscripts/run_onchange_after_48-system-updates-security.sh.tmpl`
+- `.chezmoiscripts/run_onchange_after_49-privacy-minimization.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_50-dock-layout.sh.tmpl`
 
 Current defaults baseline (`40`) is intentionally minimal:
 
 - `NSGlobalDomain AppleAccentColor=3`
 - `NSGlobalDomain AppleHighlightColor="0.752941 0.964706 0.678431 Green"`
+
+System updates + FileVault enforcement (`48`):
+
+- Hard-fails apply when FileVault is off.
+- Enforces automatic Software Update posture (schedule on, download/install/security keys enabled).
+- FileVault enablement is manual in System Settings to preserve Apple Account escrow flow.
+- Emergency bypass: `CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1`.
+
+Privacy minimization (`49`):
+
+- Enforces personalized ads off.
+- Enforces analytics sharing off (`AutoSubmit=false`, `ThirdPartyDataSubmit=false`).
+- Disables Siri and Dictation.
+- Siri Suggestions remain intentionally unmanaged.
+- Emergency bypass: `CHEZMOI_SKIP_PRIVACY_MIN=1`.
 
 ## Verification
 
@@ -93,6 +110,8 @@ CHEZMOI_SKIP_DISPLAY_SCALING=1 chezmoi apply
 CHEZMOI_SKIP_APPEARANCE=1 chezmoi apply
 CHEZMOI_SKIP_DOCK_LAYOUT=1 chezmoi apply
 CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1 chezmoi apply
+CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1 chezmoi apply
+CHEZMOI_SKIP_PRIVACY_MIN=1 chezmoi apply
 CHEZMOI_SKIP_VERIFY=1 chezmoi apply
 CHEZMOI_SKIP_READINESS=1 chezmoi apply
 CHEZMOI_VERIFY_STRICT=1 chezmoi apply
@@ -110,5 +129,7 @@ CHEZMOI_READINESS_STRICT=1 chezmoi apply
 - `36` Defender installer
 - `37` WireGuard setup
 - `40-50` macOS UX/system settings
+- `48` FileVault + Software Update enforcement
+- `49` Privacy minimization (ads/analytics/Siri/Dictation)
 - `60` verification
 - `61` readiness checklist

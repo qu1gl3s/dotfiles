@@ -224,6 +224,44 @@ check_istat() {
   fi
 }
 
+check_system_updates_security() {
+  section "System updates + FileVault readiness"
+
+  filevault_status="$(fdesetup status 2>/dev/null || true)"
+  if grep -Eq '^FileVault is On\.' <<< "${filevault_status}"; then
+    pass "FileVault is enabled."
+  else
+    todo "FileVault is off. Enable in System Settings with Apple Account escrow, then rerun apply."
+  fi
+
+  softwareupdate_schedule_output="$(softwareupdate --schedule 2>/dev/null || true)"
+  if grep -Eqi 'turned on' <<< "${softwareupdate_schedule_output}"; then
+    pass "Software Update schedule is enabled."
+  else
+    todo "Software Update schedule is off. Rerun apply (or enable automatic checking) to align."
+  fi
+
+  check_update_key() {
+    local domain="$1"
+    local key="$2"
+    local label="$3"
+    local current=""
+    current="$(defaults read "${domain}" "${key}" 2>/dev/null || echo "<unset>")"
+
+    if [[ "${current}" == "1" ]]; then
+      pass "${label} is enabled."
+    else
+      todo "${label} is not enabled (current=${current}). Rerun apply to enforce."
+    fi
+  }
+
+  check_update_key "/Library/Preferences/com.apple.SoftwareUpdate" "AutomaticDownload" "SoftwareUpdate AutomaticDownload"
+  check_update_key "/Library/Preferences/com.apple.SoftwareUpdate" "ConfigDataInstall" "SoftwareUpdate ConfigDataInstall"
+  check_update_key "/Library/Preferences/com.apple.SoftwareUpdate" "CriticalUpdateInstall" "SoftwareUpdate CriticalUpdateInstall"
+  check_update_key "/Library/Preferences/com.apple.SoftwareUpdate" "AutomaticallyInstallMacOSUpdates" "SoftwareUpdate AutomaticallyInstallMacOSUpdates"
+  check_update_key "/Library/Preferences/com.apple.commerce" "AutoUpdate" "Commerce AutoUpdate"
+}
+
 if [[ "$(uname -s)" != "Darwin" ]]; then
   warn "Readiness checks are macOS-specific; skipping on non-macOS host."
   echo
@@ -236,6 +274,7 @@ check_wireguard
 check_synology_screenshot
 check_defender
 check_istat
+check_system_updates_security
 
 echo
 echo "SUMMARY: PASS=${PASS_COUNT} TODO=${TODO_COUNT} WARN=${WARN_COUNT} FAIL=${FAIL_COUNT}"

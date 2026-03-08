@@ -1,0 +1,141 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_48-system-updates-security.sh.tmpl
+# Purpose: Enforce FileVault and Software Update security policy.
+# Prerequisites: macOS, sudo access for privileged writes.
+# Env flags:
+#   CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1 skips this script
+#   CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1 also skips this script
+# Failure behavior: exits non-zero if FileVault is disabled or privileged drift cannot be remediated.
+# Trigger hash (system updates + filevault state): {{ output "bash" "-lc" "fv=$(fdesetup status 2>/dev/null || true); sch=$(softwareupdate --schedule 2>/dev/null || true); ad=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload 2>/dev/null || echo unset); cd=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall 2>/dev/null || echo unset); cu=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall 2>/dev/null || echo unset); mu=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates 2>/dev/null || echo unset); au=$(defaults read /Library/Preferences/com.apple.commerce AutoUpdate 2>/dev/null || echo unset); printf \"%s|%s|%s|%s|%s|%s|%s\" \"$fv\" \"$sch\" \"$ad\" \"$cd\" \"$cu\" \"$mu\" \"$au\"" | sha256sum }}
+
+if [[ "${CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY:-0}" == "1" ]]; then
+  echo "Skipping system updates + FileVault enforcement because CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1"
+  exit 0
+fi
+
+if [[ "${CHEZMOI_SKIP_PRIVILEGED_SYSTEM:-0}" == "1" ]]; then
+  echo "Skipping system updates + FileVault enforcement because CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+filevault_status="$(fdesetup status 2>/dev/null || true)"
+if ! grep -Eq '^FileVault is On\.' <<< "${filevault_status}"; then
+  cat >&2 <<'EOF'
+FileVault is not enabled. This setup requires FileVault to be on.
+Enable FileVault manually in System Settings using Apple Account escrow:
+  System Settings -> Privacy & Security -> FileVault
+Then rerun:
+  chezmoi apply
+Emergency bypass:
+  CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1 chezmoi apply
+EOF
+  exit 1
+fi
+
+need_sudo=0
+applied_changes=0
+
+need_schedule_on=0
+need_auto_download=0
+need_config_data=0
+need_critical_updates=0
+need_auto_macos_updates=0
+need_commerce_autoupdate=0
+
+softwareupdate_schedule_output="$(softwareupdate --schedule 2>/dev/null || true)"
+if ! grep -Eqi 'turned on' <<< "${softwareupdate_schedule_output}"; then
+  need_schedule_on=1
+  need_sudo=1
+fi
+
+auto_download="$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload 2>/dev/null || echo "<unset>")"
+config_data_install="$(defaults read /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall 2>/dev/null || echo "<unset>")"
+critical_update_install="$(defaults read /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall 2>/dev/null || echo "<unset>")"
+auto_macos_updates="$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates 2>/dev/null || echo "<unset>")"
+commerce_auto_update="$(defaults read /Library/Preferences/com.apple.commerce AutoUpdate 2>/dev/null || echo "<unset>")"
+
+if [[ "${auto_download}" != "1" ]]; then
+  need_auto_download=1
+  need_sudo=1
+fi
+if [[ "${config_data_install}" != "1" ]]; then
+  need_config_data=1
+  need_sudo=1
+fi
+if [[ "${critical_update_install}" != "1" ]]; then
+  need_critical_updates=1
+  need_sudo=1
+fi
+if [[ "${auto_macos_updates}" != "1" ]]; then
+  need_auto_macos_updates=1
+  need_sudo=1
+fi
+if [[ "${commerce_auto_update}" != "1" ]]; then
+  need_commerce_autoupdate=1
+  need_sudo=1
+fi
+
+if [[ "${need_sudo}" -eq 0 ]]; then
+  echo "FileVault and Software Update security settings already aligned."
+  exit 0
+fi
+
+if [[ ! -t 0 || ! -t 1 ]]; then
+  cat >&2 <<'EOF'
+System update/FileVault privileged drift detected but no interactive TTY is available for sudo.
+Re-run in an interactive shell, or bypass temporarily with:
+  CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1 chezmoi apply
+EOF
+  exit 1
+fi
+
+if ! sudo -v; then
+  echo "Unable to obtain sudo credentials for system updates/FileVault policy enforcement." >&2
+  exit 1
+fi
+
+if [[ "${need_schedule_on}" -eq 1 ]]; then
+  sudo softwareupdate --schedule on >/dev/null
+  echo "Applied softwareupdate schedule on"
+  applied_changes=1
+fi
+
+if [[ "${need_auto_download}" -eq 1 ]]; then
+  sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload -bool true
+  echo "Applied com.apple.SoftwareUpdate AutomaticDownload=1"
+  applied_changes=1
+fi
+
+if [[ "${need_config_data}" -eq 1 ]]; then
+  sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true
+  echo "Applied com.apple.SoftwareUpdate ConfigDataInstall=1"
+  applied_changes=1
+fi
+
+if [[ "${need_critical_updates}" -eq 1 ]]; then
+  sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall -bool true
+  echo "Applied com.apple.SoftwareUpdate CriticalUpdateInstall=1"
+  applied_changes=1
+fi
+
+if [[ "${need_auto_macos_updates}" -eq 1 ]]; then
+  sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool true
+  echo "Applied com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates=1"
+  applied_changes=1
+fi
+
+if [[ "${need_commerce_autoupdate}" -eq 1 ]]; then
+  sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool true
+  echo "Applied com.apple.commerce AutoUpdate=1"
+  applied_changes=1
+fi
+
+if [[ "${applied_changes}" -eq 0 ]]; then
+  echo "FileVault and Software Update security settings already aligned."
+fi

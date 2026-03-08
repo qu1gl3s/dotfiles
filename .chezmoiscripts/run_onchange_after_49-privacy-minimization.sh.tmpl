@@ -1,0 +1,115 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_49-privacy-minimization.sh.tmpl
+# Purpose: Enforce personal privacy-minimization settings.
+# Prerequisites: macOS, sudo access for privileged analytics plist writes.
+# Env flags:
+#   CHEZMOI_SKIP_PRIVACY_MIN=1 skips this script
+#   CHEZMOI_SKIP_MACOS_DEFAULTS=1 also skips this script
+# Failure behavior: exits non-zero when privileged drift exists but sudo escalation cannot be completed.
+# Trigger hash (privacy state): {{ output "bash" "-lc" "ad=$(defaults read com.apple.AdLib allowApplePersonalizedAdvertising 2>/dev/null || echo unset); as=$(defaults read com.apple.assistant.support \"Assistant Enabled\" 2>/dev/null || echo unset); di=$(defaults read com.apple.assistant.support \"Dictation Enabled\" 2>/dev/null || echo unset); vt=$(defaults read com.apple.Siri VoiceTriggerUserEnabled 2>/dev/null || echo unset); au=$(plutil -extract AutoSubmit raw -o - \"/Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist\" 2>/dev/null || echo unset); tp=$(plutil -extract ThirdPartyDataSubmit raw -o - \"/Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist\" 2>/dev/null || echo unset); printf \"%s|%s|%s|%s|%s|%s\" \"$ad\" \"$as\" \"$di\" \"$vt\" \"$au\" \"$tp\"" | sha256sum }}
+
+if [[ "${CHEZMOI_SKIP_PRIVACY_MIN:-0}" == "1" ]]; then
+  echo "Skipping privacy minimization because CHEZMOI_SKIP_PRIVACY_MIN=1"
+  exit 0
+fi
+
+if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
+  echo "Skipping privacy minimization because CHEZMOI_SKIP_MACOS_DEFAULTS=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+expected_personalized_ads="0"
+expected_assistant_enabled="0"
+expected_dictation_enabled="0"
+expected_voice_trigger_enabled="0"
+expected_auto_submit="false"
+expected_third_party_submit="false"
+analytics_plist="/Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist"
+
+need_sudo=0
+applied_changes=0
+need_auto_submit=0
+need_third_party_submit=0
+
+current_personalized_ads="$(defaults read com.apple.AdLib allowApplePersonalizedAdvertising 2>/dev/null || echo "<unset>")"
+if [[ "${current_personalized_ads}" != "${expected_personalized_ads}" ]]; then
+  defaults write com.apple.AdLib allowApplePersonalizedAdvertising -bool false
+  echo "Applied com.apple.AdLib allowApplePersonalizedAdvertising=${expected_personalized_ads}"
+  applied_changes=1
+fi
+
+current_assistant_enabled="$(defaults read com.apple.assistant.support "Assistant Enabled" 2>/dev/null || echo "<unset>")"
+if [[ "${current_assistant_enabled}" != "${expected_assistant_enabled}" ]]; then
+  defaults write com.apple.assistant.support "Assistant Enabled" -int "${expected_assistant_enabled}"
+  echo "Applied com.apple.assistant.support Assistant Enabled=${expected_assistant_enabled}"
+  applied_changes=1
+fi
+
+current_dictation_enabled="$(defaults read com.apple.assistant.support "Dictation Enabled" 2>/dev/null || echo "<unset>")"
+if [[ "${current_dictation_enabled}" != "${expected_dictation_enabled}" ]]; then
+  defaults write com.apple.assistant.support "Dictation Enabled" -int "${expected_dictation_enabled}"
+  echo "Applied com.apple.assistant.support Dictation Enabled=${expected_dictation_enabled}"
+  applied_changes=1
+fi
+
+current_voice_trigger_enabled="$(defaults read com.apple.Siri VoiceTriggerUserEnabled 2>/dev/null || echo "<unset>")"
+if [[ "${current_voice_trigger_enabled}" != "${expected_voice_trigger_enabled}" ]]; then
+  defaults write com.apple.Siri VoiceTriggerUserEnabled -bool false
+  echo "Applied com.apple.Siri VoiceTriggerUserEnabled=${expected_voice_trigger_enabled}"
+  applied_changes=1
+fi
+
+if [[ ! -f "${analytics_plist}" ]]; then
+  echo "Required analytics plist not found: ${analytics_plist}" >&2
+  exit 1
+fi
+
+current_auto_submit="$(plutil -extract AutoSubmit raw -o - "${analytics_plist}" 2>/dev/null || echo "<unset>")"
+if [[ "${current_auto_submit}" != "${expected_auto_submit}" ]]; then
+  need_auto_submit=1
+  need_sudo=1
+fi
+
+current_third_party_submit="$(plutil -extract ThirdPartyDataSubmit raw -o - "${analytics_plist}" 2>/dev/null || echo "<unset>")"
+if [[ "${current_third_party_submit}" != "${expected_third_party_submit}" ]]; then
+  need_third_party_submit=1
+  need_sudo=1
+fi
+
+if [[ "${need_sudo}" -eq 1 ]]; then
+  if [[ ! -t 0 || ! -t 1 ]]; then
+    cat >&2 <<'EOF'
+Privacy analytics drift detected but no interactive TTY is available for sudo.
+Re-run in an interactive shell, or bypass temporarily with:
+  CHEZMOI_SKIP_PRIVACY_MIN=1 chezmoi apply
+EOF
+    exit 1
+  fi
+
+  if ! sudo -v; then
+    echo "Unable to obtain sudo credentials for privacy minimization." >&2
+    exit 1
+  fi
+
+  if [[ "${need_auto_submit}" -eq 1 ]]; then
+    sudo defaults write "/Library/Application Support/CrashReporter/DiagnosticMessagesHistory" AutoSubmit -bool false
+    echo "Applied CrashReporter AutoSubmit=false"
+    applied_changes=1
+  fi
+
+  if [[ "${need_third_party_submit}" -eq 1 ]]; then
+    sudo defaults write "/Library/Application Support/CrashReporter/DiagnosticMessagesHistory" ThirdPartyDataSubmit -bool false
+    echo "Applied CrashReporter ThirdPartyDataSubmit=false"
+    applied_changes=1
+  fi
+fi
+
+if [[ "${applied_changes}" -eq 0 ]]; then
+  echo "Privacy minimization settings already aligned."
+fi
