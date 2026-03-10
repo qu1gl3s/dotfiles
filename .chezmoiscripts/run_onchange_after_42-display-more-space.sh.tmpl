@@ -1,13 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 #
-# Script: run_onchange_after_42-display-more-space.sh
+# Script: run_onchange_after_42-display-more-space.sh.tmpl
 # Purpose: Enforce built-in display to "More Space" by selecting the highest scaled mode.
 # Prerequisites: macOS with displayplacer available.
 # Env flags:
 #   CHEZMOI_SKIP_BREW=1 skips this script
 #   CHEZMOI_SKIP_DISPLAY_SCALING=1 skips this script
-# Failure behavior: exits non-zero if built-in display or scaled modes cannot be resolved/applied.
+# Failure behavior: warns and defers when built-in display requirements are unavailable; exits non-zero only on unexpected script failures.
+# Trigger hash (display convergence state): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/display-scaling-state\"; if [ -f \"$state_file\" ]; then cat \"$state_file\"; else echo unset; fi" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
   echo "Skipping display scaling because CHEZMOI_SKIP_BREW=1"
@@ -23,23 +24,37 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 0
 fi
 
+STATE_DIR="${HOME}/.local/state/chezmoi"
+DISPLAY_STATE_FILE="${STATE_DIR}/display-scaling-state"
+
+mark_pending() {
+  mkdir -p "${STATE_DIR}"
+  printf 'pending-%s\n' "$(date +%s)" > "${DISPLAY_STATE_FILE}"
+}
+
+mark_aligned() {
+  mkdir -p "${STATE_DIR}"
+  printf 'aligned\n' > "${DISPLAY_STATE_FILE}"
+}
+
+defer_with_warning() {
+  local message="$1"
+  echo "WARN: ${message}"
+  mark_pending
+  exit 0
+}
+
 if [[ -x /opt/homebrew/bin/brew ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
 
 if ! command -v displayplacer >/dev/null 2>&1; then
-  cat >&2 <<'EOF'
-displayplacer is required for display scaling automation but was not found.
-Install prerequisites with:
-  brew install displayplacer
-EOF
-  exit 1
+  defer_with_warning "displayplacer not found; deferring display scaling until Homebrew tools are installed."
 fi
 
 display_list_output="$(displayplacer list 2>/dev/null || true)"
 if [[ -z "${display_list_output}" ]]; then
-  echo "displayplacer list returned no output; cannot determine display modes." >&2
-  exit 1
+  defer_with_warning "displayplacer returned no output; deferring display scaling for this apply."
 fi
 
 builtin_count=0
@@ -115,38 +130,26 @@ if [[ -n "${current_id}" ]]; then
 fi
 
 if [[ "${builtin_count}" -eq 0 ]]; then
-  cat >&2 <<'EOF'
-Built-in display not detected in displayplacer output.
-This can happen in clamshell mode or when no internal panel is active.
-Connect/open your built-in display, then rerun:
-  chezmoi apply
-EOF
-  exit 1
+  defer_with_warning "Built-in display not detected (clamshell/external-only). Open built-in display and rerun chezmoi apply."
 fi
 
 if [[ "${builtin_count}" -gt 1 ]]; then
-  echo "Multiple built-in displays detected; cannot choose a single target mode safely." >&2
-  exit 1
+  defer_with_warning "Multiple built-in displays detected; deferring display scaling until display topology is unambiguous."
 fi
 
 if [[ -z "${builtin_target_res}" ]]; then
-  echo "No scaling:on modes found for built-in display; cannot enforce More Space." >&2
-  exit 1
+  defer_with_warning "No scaling:on modes found for built-in display; deferring display scaling."
 fi
 
 if [[ "${builtin_current_scaling}" == "on" && "${builtin_current_res}" == "${builtin_target_res}" ]]; then
+  mark_aligned
   echo "Built-in display already set to More Space (${builtin_target_res})."
   exit 0
 fi
 
 if ! displayplacer "id:${builtin_id} res:${builtin_target_res} scaling:on" >/dev/null 2>&1; then
-  cat >&2 <<EOF
-Failed to apply More Space mode with displayplacer.
-Attempted:
-  displayplacer "id:${builtin_id} res:${builtin_target_res} scaling:on"
-You may need to unlock Displays settings or reconnect displays, then rerun chezmoi apply.
-EOF
-  exit 1
+  defer_with_warning "displayplacer could not apply ${builtin_target_res}; unlock Displays settings/reconnect displays and rerun chezmoi apply."
 fi
 
+mark_aligned
 echo "Applied built-in display More Space mode: ${builtin_target_res}"

@@ -1,0 +1,75 @@
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_41-screenshot-location.sh.tmpl
+# Purpose: Enforce screenshot save location under configured Synology Drive CloudStorage.
+# Prerequisites: macOS with exactly one SynologyDrive-* root and an existing Screenshots folder.
+# Env flags: CHEZMOI_SKIP_MACOS_DEFAULTS=1 skips this script.
+# Failure behavior: warns and defers when Synology prerequisites are missing; exits non-zero only on write failures.
+# Trigger hash (screenshot convergence state): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/screenshot-location-state\"; if [ -f \"$state_file\" ]; then cat \"$state_file\"; else echo unset; fi" | sha256sum }}
+
+if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
+  echo "Skipping screenshot location because CHEZMOI_SKIP_MACOS_DEFAULTS=1"
+  exit 0
+fi
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  exit 0
+fi
+
+STATE_DIR="${HOME}/.local/state/chezmoi"
+SCREENSHOT_STATE_FILE="${STATE_DIR}/screenshot-location-state"
+
+mark_pending() {
+  mkdir -p "${STATE_DIR}"
+  printf 'pending-%s\n' "$(date +%s)" > "${SCREENSHOT_STATE_FILE}"
+}
+
+mark_aligned() {
+  mkdir -p "${STATE_DIR}"
+  printf 'aligned\n' > "${SCREENSHOT_STATE_FILE}"
+}
+
+defer_with_warning() {
+  local message="$1"
+  echo "WARN: ${message}"
+  mark_pending
+  exit 0
+}
+
+shopt -s nullglob
+candidate_roots=( "${HOME}"/Library/CloudStorage/SynologyDrive-* )
+shopt -u nullglob
+
+if [[ "${#candidate_roots[@]}" -eq 0 ]]; then
+  defer_with_warning "Synology Drive CloudStorage root not found at ~/Library/CloudStorage/SynologyDrive-*. Configure Synology Drive, then rerun chezmoi apply."
+fi
+
+if [[ "${#candidate_roots[@]}" -gt 1 ]]; then
+  echo "WARN: Multiple Synology Drive CloudStorage roots found. Resolve ambiguity, then rerun chezmoi apply."
+  for root in "${candidate_roots[@]}"; do
+    echo "WARN: candidate root: ${root}"
+  done
+  mark_pending
+  exit 0
+fi
+
+synology_root="${candidate_roots[0]}"
+desired_path="${synology_root}/Screenshots"
+
+if [[ ! -d "${desired_path}" ]]; then
+  defer_with_warning "Screenshot folder missing at ${desired_path}. Create/fix it, then rerun chezmoi apply."
+fi
+
+desired_tilde_path="~${desired_path#"${HOME}"}"
+current_path="$(defaults read com.apple.screencapture location 2>/dev/null || true)"
+
+if [[ "${current_path}" == "${desired_path}" || "${current_path}" == "${desired_tilde_path}" ]]; then
+  mark_aligned
+  exit 0
+fi
+
+defaults write com.apple.screencapture location -string "${desired_path}"
+killall SystemUIServer >/dev/null 2>&1 || true
+mark_aligned
+echo "Applied screenshot location: ${desired_path}"

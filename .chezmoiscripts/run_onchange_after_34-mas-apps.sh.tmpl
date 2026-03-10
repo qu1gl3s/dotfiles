@@ -8,9 +8,10 @@ set -euo pipefail
 #   CHEZMOI_SKIP_BREW=1 skips this script
 #   CHEZMOI_SKIP_MAS=1 skips this script
 #   CHEZMOI_INSTALL_OPTIONAL=1 also installs apps from mas/optional-apps.txt
-# Failure behavior: exits non-zero if mas is missing, app list missing, or App Store login is unavailable.
+# Failure behavior: exits non-zero only for true config/install errors; App Store auth/session issues warn and defer.
 # Trigger hash (mas/apps.txt): {{ include "mas/apps.txt" | sha256sum }}
 # Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
+# Trigger hash (mas convergence state): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/mas-convergence-state\"; if [ -f \"$state_file\" ]; then cat \"$state_file\"; else echo unset; fi" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
   echo "Skipping Mac App Store installs because CHEZMOI_SKIP_BREW=1"
@@ -42,6 +43,8 @@ fi
 SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
 MAS_APPS_FILE="${SOURCE_DIR}/mas/apps.txt"
 MAS_OPTIONAL_APPS_FILE="${SOURCE_DIR}/mas/optional-apps.txt"
+STATE_DIR="${HOME}/.local/state/chezmoi"
+MAS_STATE_FILE="${STATE_DIR}/mas-convergence-state"
 
 if [[ ! -f "${MAS_APPS_FILE}" ]]; then
   echo "Mac App Store app list not found: ${MAS_APPS_FILE}" >&2
@@ -56,14 +59,88 @@ fi
 # Avoid Spotlight auto-index delays/noise from mas.
 export MAS_NO_AUTO_INDEX=1
 
-installed_ids="$(mas list 2>/dev/null | awk '{print $1}')"
+mark_pending() {
+  mkdir -p "${STATE_DIR}"
+  printf 'pending-%s\n' "$(date +%s)" > "${MAS_STATE_FILE}"
+}
+
+mark_aligned() {
+  mkdir -p "${STATE_DIR}"
+  printf 'aligned\n' > "${MAS_STATE_FILE}"
+}
+
+is_auth_error() {
+  local output="$1"
+  grep -Eqi 'sign in|not signed|no account|account.*required|authentication|authenticate|login required' <<<"${output}"
+}
+
+run_with_timeout() {
+  local timeout_seconds="$1"
+  shift
+  local tmp_output=""
+  local pid=""
+  local elapsed=0
+  local status=0
+
+  tmp_output="$(mktemp)"
+  "$@" >"${tmp_output}" 2>&1 &
+  pid=$!
+
+  while kill -0 "${pid}" 2>/dev/null; do
+    if [[ "${elapsed}" -ge "${timeout_seconds}" ]]; then
+      kill "${pid}" 2>/dev/null || true
+      wait "${pid}" 2>/dev/null || true
+      cat "${tmp_output}"
+      rm -f "${tmp_output}"
+      return 124
+    fi
+    sleep 1
+    ((elapsed += 1))
+  done
+
+  wait "${pid}" || status=$?
+  cat "${tmp_output}"
+  rm -f "${tmp_output}"
+  return "${status}"
+}
+
+defer_for_auth() {
+  local reason="$1"
+  echo "WARN: ${reason}"
+  echo "WARN: Deferring Mac App Store installs until auth/session is available. Rerun: chezmoi apply"
+  mark_pending
+  exit 0
+}
+
+mas_list_output=""
+mas_list_status=0
+mas_list_output="$(run_with_timeout 20 env MAS_NO_AUTO_INDEX=1 mas list)" || mas_list_status=$?
+
+if [[ "${mas_list_status}" -eq 124 ]]; then
+  defer_for_auth "mas list timed out (likely App Store auth/session unavailable)."
+elif [[ "${mas_list_status}" -ne 0 ]]; then
+  if is_auth_error "${mas_list_output}"; then
+    defer_for_auth "App Store authentication required for mas installs."
+  fi
+  echo "${mas_list_output}" >&2
+  exit 1
+fi
+
+installed_ids="$(awk '{print $1}' <<<"${mas_list_output}")"
 
 install_apps_from_file() {
   local apps_file="$1"
   local list_label="$2"
+  local install_output=""
+  local install_status=0
 
   while IFS='|' read -r app_id app_name; do
     [[ -z "${app_id}" || "${app_id:0:1}" == "#" ]] && continue
+
+    if [[ -z "${app_name}" || ! "${app_id}" =~ ^[0-9]+$ ]]; then
+      echo "Malformed MAS entry in ${apps_file}: ${app_id}|${app_name}" >&2
+      return 1
+    fi
 
     if grep -qx "${app_id}" <<<"${installed_ids}"; then
       echo "Using ${app_name} (${app_id})"
@@ -71,25 +148,45 @@ install_apps_from_file() {
     fi
 
     echo "Installing ${list_label} app ${app_name} (${app_id}) from Mac App Store..."
-    if ! install_output="$(mas install "${app_id}" 2>&1)"; then
+    install_status=0
+    install_output="$(run_with_timeout 60 mas install "${app_id}")" || install_status=$?
+    if [[ "${install_status}" -eq 124 ]]; then
+      echo "WARN: mas install timed out for ${app_name} (${app_id}); deferring remaining MAS installs."
+      return 10
+    fi
+
+    if [[ "${install_status}" -ne 0 ]]; then
       echo "${install_output}" >&2
-      if grep -Eqi 'sign in|not signed|no account|account.*required' <<<"${install_output}"; then
-        cat >&2 <<'EOF'
-Mac App Store authentication is required for mas installs.
-Sign in to the App Store app, then rerun:
-  chezmoi apply
-To bypass temporarily:
-  CHEZMOI_SKIP_MAS=1 chezmoi apply
-EOF
+      if is_auth_error "${install_output}"; then
+        echo "WARN: App Store authentication/session unavailable while installing ${app_name} (${app_id}); deferring remaining MAS installs."
+        return 10
       fi
-      exit 1
+      return 1
     fi
     echo "${install_output}"
   done < "${apps_file}"
+
+  return 0
 }
 
-install_apps_from_file "${MAS_APPS_FILE}" "required"
+if ! install_apps_from_file "${MAS_APPS_FILE}" "required"; then
+  install_result=$?
+  if [[ "${install_result}" -eq 10 ]]; then
+    mark_pending
+    exit 0
+  fi
+  exit "${install_result}"
+fi
 
 if [[ "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" ]]; then
-  install_apps_from_file "${MAS_OPTIONAL_APPS_FILE}" "optional"
+  if ! install_apps_from_file "${MAS_OPTIONAL_APPS_FILE}" "optional"; then
+    install_result=$?
+    if [[ "${install_result}" -eq 10 ]]; then
+      mark_pending
+      exit 0
+    fi
+    exit "${install_result}"
+  fi
 fi
+
+mark_aligned

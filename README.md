@@ -37,8 +37,8 @@ Notes:
 ## macOS automation
 
 - `.chezmoiscripts/run_onchange_after_40-macos-defaults.sh`
-- `.chezmoiscripts/run_onchange_after_41-screenshot-location.sh`
-- `.chezmoiscripts/run_onchange_after_42-display-more-space.sh`
+- `.chezmoiscripts/run_onchange_after_41-screenshot-location.sh.tmpl`
+- `.chezmoiscripts/run_onchange_after_42-display-more-space.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_43-menu-bar-clock.sh`
 - `.chezmoiscripts/run_onchange_after_44-textedit.sh`
 - `.chezmoiscripts/run_onchange_after_45-appearance.sh`
@@ -66,6 +66,12 @@ Privacy minimization (`49`):
 - Disables Siri and Dictation.
 - Siri Suggestions remain intentionally unmanaged.
 - Emergency bypass: `CHEZMOI_SKIP_PRIVACY_MIN=1`.
+
+First-run UX deferrals:
+
+- MAS auth/session unavailable warns and defers app installs (slot `34`), then retries on next `chezmoi apply`.
+- Synology screenshot prerequisites missing warn and defer location enforcement (slot `41`), then retries on next `chezmoi apply`.
+- Built-in display unavailable or display apply temporarily unavailable warns and defers More Space enforcement (slot `42`), then retries on next `chezmoi apply`.
 
 ## Verification
 

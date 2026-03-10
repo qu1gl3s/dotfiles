@@ -13,7 +13,7 @@ set -euo pipefail
 # Trigger hash (mas/apps.txt): {{ include "mas/apps.txt" | sha256sum }}
 # Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
 # Trigger hash (wireguard hook): {{ include ".chezmoiscripts/run_onchange_after_37-wireguard-config.sh.tmpl" | sha256sum }}
-# Trigger hash (screenshot hook): {{ include ".chezmoiscripts/run_onchange_after_41-screenshot-location.sh" | sha256sum }}
+# Trigger hash (screenshot hook): {{ include ".chezmoiscripts/run_onchange_after_41-screenshot-location.sh.tmpl" | sha256sum }}
 # Trigger hash (defender hook): {{ include ".chezmoiscripts/run_once_after_36-microsoft-defender-consumer.sh" | sha256sum }}
 # Trigger hash (48-system-updates-security): {{ include ".chezmoiscripts/run_onchange_after_48-system-updates-security.sh.tmpl" | sha256sum }}
 

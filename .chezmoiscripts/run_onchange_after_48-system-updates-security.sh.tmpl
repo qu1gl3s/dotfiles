@@ -7,7 +7,7 @@ set -euo pipefail
 # Env flags:
 #   CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1 skips this script
 #   CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1 also skips this script
-# Failure behavior: exits non-zero if FileVault is disabled or privileged drift cannot be remediated.
+# Failure behavior: exits non-zero if FileVault is off/decrypting/unknown or privileged drift cannot be remediated.
 # Trigger hash (system updates + filevault state): {{ output "bash" "-lc" "fv=$(fdesetup status 2>/dev/null || true); sch=$(softwareupdate --schedule 2>/dev/null || true); ad=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload 2>/dev/null || echo unset); cd=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall 2>/dev/null || echo unset); cu=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall 2>/dev/null || echo unset); mu=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates 2>/dev/null || echo unset); au=$(defaults read /Library/Preferences/com.apple.commerce AutoUpdate 2>/dev/null || echo unset); printf \"%s|%s|%s|%s|%s|%s|%s\" \"$fv\" \"$sch\" \"$ad\" \"$cd\" \"$cu\" \"$mu\" \"$au\"" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY:-0}" == "1" ]]; then
@@ -24,10 +24,31 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
   exit 0
 fi
 
-filevault_status="$(fdesetup status 2>/dev/null || true)"
-if ! grep -Eq '^FileVault is On\.' <<< "${filevault_status}"; then
-  cat >&2 <<'EOF'
-FileVault is not enabled. This setup requires FileVault to be on.
+filevault_status="$(fdesetup status -extended 2>/dev/null || fdesetup status 2>/dev/null || true)"
+filevault_state="UNKNOWN"
+
+if grep -Eqi 'decrypt(ing|ed)?' <<< "${filevault_status}"; then
+  filevault_state="OFF_OR_DECRYPTING"
+elif grep -Eq '^FileVault is Off\.' <<< "${filevault_status}"; then
+  filevault_state="OFF_OR_DECRYPTING"
+elif grep -Eq '^FileVault is On\.' <<< "${filevault_status}"; then
+  if grep -Eqi 'encrypt(ion|ing).*(in progress|percent|remaining)' <<< "${filevault_status}" || \
+    grep -Eqi 'in progress' <<< "${filevault_status}"; then
+    filevault_state="ON_ENCRYPTING"
+  else
+    filevault_state="ON_COMPLETE"
+  fi
+fi
+
+case "${filevault_state}" in
+  "ON_COMPLETE")
+    ;;
+  "ON_ENCRYPTING")
+    echo "Warning: FileVault encryption is still in progress. Continuing with software update enforcement."
+    ;;
+  "OFF_OR_DECRYPTING")
+    cat >&2 <<'EOF'
+FileVault is off or decrypting. This setup requires FileVault to be fully enabled.
 Enable FileVault manually in System Settings using Apple Account escrow:
   System Settings -> Privacy & Security -> FileVault
 Then rerun:
@@ -35,8 +56,15 @@ Then rerun:
 Emergency bypass:
   CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1 chezmoi apply
 EOF
-  exit 1
-fi
+    exit 1
+    ;;
+  *)
+    echo "Unable to classify FileVault state from fdesetup output. Raw output:" >&2
+    printf '%s\n' "${filevault_status}" >&2
+    echo "Re-run after checking FileVault state in System Settings, or bypass once with CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1." >&2
+    exit 1
+    ;;
+esac
 
 need_sudo=0
 applied_changes=0
