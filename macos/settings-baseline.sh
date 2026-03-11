@@ -18,8 +18,10 @@ com.apple.finder NewWindowTargetPath string __HOME_URI__
 com.apple.finder ShowExternalHardDrivesOnDesktop bool 1
 com.apple.finder ShowHardDrivesOnDesktop bool 1
 com.apple.finder ShowMountedServersOnDesktop bool 1
+com.apple.finder ShowPathbar bool 1
 com.apple.finder ShowRecentTags bool 0
 com.apple.finder ShowRemovableMediaOnDesktop bool 1
+com.apple.finder ShowStatusBar bool 1
 com.apple.WindowManager EnableStandardClickToShowDesktop bool 0
 com.apple.WindowManager HideDesktop bool 1
 com.apple.WindowManager StageManagerHideWidgets bool 1

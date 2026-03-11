@@ -21,8 +21,10 @@ com.apple.finder NewWindowTargetPath string
 com.apple.finder ShowExternalHardDrivesOnDesktop bool
 com.apple.finder ShowHardDrivesOnDesktop bool
 com.apple.finder ShowMountedServersOnDesktop bool
+com.apple.finder ShowPathbar bool
 com.apple.finder ShowRecentTags bool
 com.apple.finder ShowRemovableMediaOnDesktop bool
+com.apple.finder ShowStatusBar bool
 
 # Desktop reveal/widgets behavior
 com.apple.WindowManager EnableStandardClickToShowDesktop bool
