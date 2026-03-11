@@ -31,12 +31,8 @@ fi
 
 tmp_dir="$(mktemp -d)"
 download_path="${tmp_dir}/defender-installer"
-mount_point=""
 
 cleanup() {
-  if [[ -n "${mount_point}" && -d "${mount_point}" ]]; then
-    hdiutil detach "${mount_point}" >/dev/null 2>&1 || true
-  fi
   rm -rf "${tmp_dir}"
 }
 trap cleanup EXIT
@@ -51,45 +47,28 @@ fi
 
 file_type="$(file -b "${download_path}")"
 
-install_from_dmg() {
-  echo "Mounting installer disk image..."
-  local attach_output=""
-  attach_output="$(hdiutil attach -nobrowse "${download_path}")"
-  mount_point="$(sed -n 's/.*\(\/Volumes\/.*\)/\1/p' <<< "${attach_output}" | head -n1)"
+install_pkg_file() {
+  local pkg_input="$1"
+  local pkg_for_install="${pkg_input}"
 
-  if [[ -z "${mount_point}" || ! -d "${mount_point}" ]]; then
-    echo "Unable to resolve mounted installer volume." >&2
-    exit 1
+  # installer can reject valid pkg payloads when the filename lacks a .pkg suffix.
+  if [[ "${pkg_for_install}" != *.pkg ]]; then
+    pkg_for_install="${tmp_dir}/defender-installer.pkg"
+    cp "${pkg_input}" "${pkg_for_install}"
   fi
 
-  echo "Searching for installable content in ${mount_point}..."
-  local pkg_path=""
-  local app_path=""
-  pkg_path="$(find "${mount_point}" -maxdepth 3 -type f -name '*.pkg' | head -n1 || true)"
-  app_path="$(find "${mount_point}" -maxdepth 3 -type d -name '*.app' | head -n1 || true)"
-
-  if [[ -n "${pkg_path}" ]]; then
-    echo "Installing package: ${pkg_path}"
-    sudo /usr/sbin/installer -pkg "${pkg_path}" -target /
-  elif [[ -n "${app_path}" ]]; then
-    echo "Installing app bundle: ${app_path}"
-    sudo /usr/bin/ditto "${app_path}" "/Applications/$(basename "${app_path}")"
-  else
-    echo "No installable pkg/app found in mounted volume: ${mount_point}" >&2
-    exit 1
-  fi
+  echo "Installing package: ${pkg_for_install}"
+  sudo /usr/sbin/installer -pkg "${pkg_for_install}" -target /
 }
 
-if [[ "${file_type}" == *"xar archive"* ]]; then
-  echo "Detected PKG installer; installing directly..."
-  sudo /usr/sbin/installer -pkg "${download_path}" -target /
-elif [[ "${file_type}" == *"zlib compressed"* ]] || [[ "${file_type}" == *"Apple Disk Image"* ]] || [[ "${file_type}" == *"Apple Driver Map"* ]]; then
-  install_from_dmg
-else
-  echo "Unknown file type for downloaded installer: ${file_type}" >&2
-  echo "Attempting DMG mount as fallback..."
-  install_from_dmg
+if ! pkgutil --check-signature "${download_path}" >/dev/null 2>&1; then
+  echo "Downloaded installer did not validate as a signed pkg." >&2
+  echo "Detected file type: ${file_type}" >&2
+  exit 1
 fi
+
+echo "Detected PKG installer; installing..."
+install_pkg_file "${download_path}"
 
 if ! is_defender_installed; then
   echo "Microsoft Defender app was not detected after installer run." >&2
