@@ -9,6 +9,7 @@ set -euo pipefail
 # Script: run_onchange_after_37-wireguard-config.sh.tmpl
 # Purpose: Offer interactive WireGuard tunnel setup and re-prompt until configured.
 # Prerequisites: macOS and WireGuard app installed from the Mac App Store.
+# Optional helper: wireguard-tools (`wg`) for keypair generation/public key derivation.
 # Env overrides: CHEZMOI_SKIP_BREW=1, CHEZMOI_SKIP_MAS=1, CHEZMOI_SKIP_WIREGUARD_SETUP=1
 # Trigger hash (configured state): {{ output "bash" "-lc" "if scutil --nc list 2>/dev/null | grep -Eq '\\(com\\.wireguard\\.macos\\)|\\[VPN:com\\.wireguard\\.macos\\]'; then echo configured; elif [ -f \"$HOME/.local/state/chezmoi/wireguard-configured\" ]; then echo configured; else echo \"unconfigured-$(date +%s)\"; fi" | sha256sum }}
 
@@ -34,6 +35,7 @@ WIREGUARD_BUNDLE_ID="com.wireguard.macos"
 WIREGUARD_CONF_DIR="${HOME}/.config/wireguard"
 WIREGUARD_STATE_DIR="${HOME}/.local/state/chezmoi"
 WIREGUARD_MARKER_FILE="${WIREGUARD_STATE_DIR}/wireguard-configured"
+WIREGUARD_PUBLIC_KEY_FILE="${WIREGUARD_STATE_DIR}/wireguard-latest-public-key"
 WIREGUARD_SCUTIL_SENTINEL="scutil-detected"
 
 read_required() {
@@ -53,6 +55,15 @@ mark_configured() {
   mkdir -p "${WIREGUARD_STATE_DIR}"
   printf '%s\n' "${config_path}" > "${WIREGUARD_MARKER_FILE}"
   echo "WireGuard marked configured using ${config_path}."
+}
+
+record_public_key() {
+  local public_key="$1"
+  mkdir -p "${WIREGUARD_STATE_DIR}"
+  printf '%s\n' "${public_key}" > "${WIREGUARD_PUBLIC_KEY_FILE}"
+  chmod 600 "${WIREGUARD_PUBLIC_KEY_FILE}"
+  echo "WireGuard client public key for pfSense: ${public_key}"
+  echo "Saved public key to ${WIREGUARD_PUBLIC_KEY_FILE}"
 }
 
 wireguard_tunnel_count_from_scutil() {
@@ -139,6 +150,7 @@ if [[ -n "${tunnel_name_input}" ]]; then
 fi
 
 interface_private_key=""
+interface_public_key=""
 interface_address=""
 interface_dns=""
 peer_public_key=""
@@ -147,7 +159,35 @@ peer_allowed_ips=""
 peer_endpoint=""
 peer_persistent_keepalive=""
 
-read_required "Interface PrivateKey: " interface_private_key
+if command -v wg >/dev/null 2>&1; then
+  read -r -p "Generate a new Interface keypair now? [Y/n] " generate_keypair
+  case "${generate_keypair}" in
+    ""|[yY]|[yY][eE][sS])
+      if ! interface_private_key="$(wg genkey 2>/dev/null)"; then
+        echo "Failed to generate WireGuard private key via wg genkey." >&2
+        exit 1
+      fi
+      if ! interface_public_key="$(printf '%s' "${interface_private_key}" | wg pubkey 2>/dev/null)"; then
+        echo "Failed to derive WireGuard public key from generated private key." >&2
+        exit 1
+      fi
+      record_public_key "${interface_public_key}"
+      ;;
+    *)
+      read_required "Interface PrivateKey: " interface_private_key
+      if interface_public_key="$(printf '%s' "${interface_private_key}" | wg pubkey 2>/dev/null)"; then
+        record_public_key "${interface_public_key}"
+      else
+        echo "Could not derive public key from provided private key; continuing without public key output." >&2
+      fi
+      ;;
+  esac
+else
+  echo "wg command not found; continuing with manual private key input." >&2
+  echo "Install wireguard-tools to auto-generate/show the client public key for pfSense." >&2
+  read_required "Interface PrivateKey: " interface_private_key
+fi
+
 read_required "Interface Address (comma-separated if multiple): " interface_address
 read -r -p "Interface DNS (optional, comma-separated): " interface_dns
 read_required "Peer PublicKey: " peer_public_key

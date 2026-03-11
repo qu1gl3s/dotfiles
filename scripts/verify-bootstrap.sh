@@ -188,7 +188,7 @@ parse_displayplacer_builtin() {
 }
 
 section "Core toolchain"
-for cmd in brew chezmoi dockutil mas desktoppr displayplacer; do
+for cmd in brew chezmoi dockutil mas desktoppr displayplacer wg; do
   if command -v "${cmd}" >/dev/null 2>&1; then
     pass "command available: ${cmd}"
   else

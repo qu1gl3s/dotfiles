@@ -86,6 +86,7 @@ Notes:
 - Optional casks prompt once from `casks/optional-casks.txt`.
 - `freac-continuous` installs from upstream DMG (not a Homebrew cask token).
 - The Defender installer is PKG-only and validates package signature before install.
+- WireGuard setup can generate a new client keypair and saves the client public key to `~/.local/state/chezmoi/wireguard-latest-public-key` for pfSense peer setup.
 
 ## macOS automation
 
