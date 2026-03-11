@@ -11,6 +11,7 @@ set -euo pipefail
 # Prerequisites: macOS, textedit baseline file present in source dir.
 # Env override: CHEZMOI_SKIP_MACOS_DEFAULTS=1
 # Trigger hash (macos/textedit-baseline.sh): {{ include "macos/textedit-baseline.sh" | sha256sum }}
+# Trigger hash (current TextEdit preference snapshot): {{ output "bash" "-lc" "for key in RichText PlainTextEncoding PlainTextEncodingForWrite CheckSpellingWhileTyping CheckGrammarWithSpelling CorrectSpellingAutomatically; do if value=$(defaults read com.apple.TextEdit \"$key\" 2>/dev/null); then printf '%s=%s\\n' \"$key\" \"$value\"; else printf '%s=__unset__\\n' \"$key\"; fi; done" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
   echo "==> [44] Skipping TextEdit preferences (CHEZMOI_SKIP_MACOS_DEFAULTS=1)"
@@ -104,4 +105,8 @@ while IFS='|' read -r domain key type value; do
   write_setting "${domain}" "${key}" "${type}" "${value}"
   echo "Applied ${domain} ${key}=${value}"
 done < <(macos_textedit_settings_entries)
+
+if pgrep -x TextEdit >/dev/null 2>&1; then
+  echo "NOTE: TextEdit is running; quit and reopen it to ensure defaults are reflected immediately."
+fi
 {{ end -}}
