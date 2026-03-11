@@ -223,12 +223,11 @@ chmod 600 "${tunnel_path}"
 echo "Wrote WireGuard tunnel config: ${tunnel_path}"
 
 if command -v open >/dev/null 2>&1; then
-  if open -a "${WIREGUARD_APP}" "${tunnel_path}" >/dev/null 2>&1; then
-    echo "Opened WireGuard with ${tunnel_path}. Import/enable the tunnel in the app."
-  else
-    echo "Could not auto-open WireGuard for import; open ${tunnel_path} manually in WireGuard." >&2
-  fi
+  open -a "${WIREGUARD_APP}" >/dev/null 2>&1 || true
+  open -R "${tunnel_path}" >/dev/null 2>&1 || true
 fi
+
+echo "Import step: in WireGuard choose File > Import Tunnels... and select ${tunnel_path}."
 
 read -r -p "Mark WireGuard as configured now? [y/N] " mark_done
 case "${mark_done}" in
