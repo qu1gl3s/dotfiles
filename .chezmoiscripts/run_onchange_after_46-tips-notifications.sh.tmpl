@@ -1,0 +1,147 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipMacosDefaults -}}
+#!/bin/bash
+echo "==> [46] Skipping Tips notification suppression (disabled in chezmoi.toml)"
+{{ else -}}
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_onchange_after_46-tips-notifications.sh.tmpl
+# Purpose: Suppress Tips onboarding notifications and prompts.
+# Prerequisites: macOS, python3 for ncprefs plist mutation.
+# Env override: CHEZMOI_SKIP_MACOS_DEFAULTS=1
+# Trigger hash (tips convergence state): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/tips-convergence-state\"; if [ -f \"$state_file\" ]; then cat \"$state_file\"; else echo unset; fi" | sha256sum }}
+
+if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
+  echo "==> [46] Skipping Tips notification suppression (CHEZMOI_SKIP_MACOS_DEFAULTS=1)"
+  exit 0
+fi
+
+echo "==> [46] Tips notification suppression"
+
+STATE_DIR="${HOME}/.local/state/chezmoi"
+TIPS_STATE_FILE="${STATE_DIR}/tips-convergence-state"
+NCPREFS_FILE="${HOME}/Library/Preferences/com.apple.ncprefs.plist"
+
+mark_pending() {
+  mkdir -p "${STATE_DIR}"
+  printf 'pending-%s\n' "$(date +%s)" > "${TIPS_STATE_FILE}"
+}
+
+mark_aligned() {
+  mkdir -p "${STATE_DIR}"
+  printf 'aligned\n' > "${TIPS_STATE_FILE}"
+}
+
+applied_changes=0
+pending=0
+restart_systemuiserver=0
+restart_usernoted=0
+restart_tipsd=0
+
+tips_waiting="$(defaults read com.apple.tipsd TPSWaitingToShowWelcomeNotification 2>/dev/null || echo "<unset>")"
+if [[ "${tips_waiting}" != "0" ]]; then
+  defaults write com.apple.tipsd TPSWaitingToShowWelcomeNotification -int 0
+  echo "Applied com.apple.tipsd TPSWaitingToShowWelcomeNotification=0"
+  applied_changes=1
+  restart_tipsd=1
+fi
+
+tips_reminder_state="$(defaults read com.apple.tipsd TPSWelcomeNotificationReminderState 2>/dev/null || echo "<unset>")"
+if [[ "${tips_reminder_state}" != "1" ]]; then
+  defaults write com.apple.tipsd TPSWelcomeNotificationReminderState -int 1
+  echo "Applied com.apple.tipsd TPSWelcomeNotificationReminderState=1"
+  applied_changes=1
+  restart_tipsd=1
+fi
+
+if [[ ! -f "${NCPREFS_FILE}" ]]; then
+  echo "WARN: Notification preferences database not found yet at ${NCPREFS_FILE}; will retry on next chezmoi apply."
+  pending=1
+else
+  ncprefs_patch_output=""
+  ncprefs_patch_status=0
+  ncprefs_patch_output="$(
+    python3 - "${NCPREFS_FILE}" <<'PY'
+import plistlib
+import sys
+from pathlib import Path
+
+ncprefs_path = Path(sys.argv[1])
+
+with ncprefs_path.open("rb") as fh:
+    data = plistlib.load(fh)
+
+apps = data.get("apps")
+if not isinstance(apps, list):
+    print("MISSING_ENTRY")
+    sys.exit(20)
+
+found = False
+changed = False
+for entry in apps:
+    if not isinstance(entry, dict):
+        continue
+    if entry.get("bundle-id") != "com.apple.tips":
+        continue
+    found = True
+    if entry.get("auth") != 0:
+        entry["auth"] = 0
+        changed = True
+
+if not found:
+    print("MISSING_ENTRY")
+    sys.exit(20)
+
+if changed:
+    with ncprefs_path.open("wb") as fh:
+        plistlib.dump(data, fh, fmt=plistlib.FMT_BINARY, sort_keys=False)
+    print("CHANGED")
+else:
+    print("ALIGNED")
+PY
+  )" || ncprefs_patch_status=$?
+
+  case "${ncprefs_patch_status}" in
+    0)
+      if [[ "${ncprefs_patch_output}" == "CHANGED" ]]; then
+        echo "Applied com.apple.ncprefs com.apple.tips auth=0"
+        applied_changes=1
+        restart_systemuiserver=1
+        restart_usernoted=1
+      fi
+      ;;
+    20)
+      echo "WARN: com.apple.tips entry not present in com.apple.ncprefs yet; will retry on next chezmoi apply."
+      pending=1
+      ;;
+    *)
+      echo "Failed to patch ${NCPREFS_FILE}: ${ncprefs_patch_output}" >&2
+      exit 1
+      ;;
+  esac
+fi
+
+if [[ "${restart_tipsd}" -eq 1 ]]; then
+  killall tipsd >/dev/null 2>&1 || true
+fi
+
+if [[ "${restart_usernoted}" -eq 1 ]]; then
+  killall usernoted >/dev/null 2>&1 || true
+fi
+
+if [[ "${restart_systemuiserver}" -eq 1 ]]; then
+  killall SystemUIServer >/dev/null 2>&1 || true
+fi
+
+if [[ "${pending}" -eq 1 ]]; then
+  mark_pending
+  exit 0
+fi
+
+mark_aligned
+
+if [[ "${applied_changes}" -eq 0 ]]; then
+  echo "Tips notification settings already aligned."
+fi
+{{ end -}}

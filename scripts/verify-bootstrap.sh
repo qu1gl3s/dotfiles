@@ -62,6 +62,24 @@ check_default_equals() {
   fi
 }
 
+check_currenthost_default_equals() {
+  local domain="$1"
+  local key="$2"
+  local expected="$3"
+  local current=""
+
+  if ! current="$(defaults -currentHost read "${domain}" "${key}" 2>/dev/null)"; then
+    fail "defaults -currentHost ${domain} ${key} missing (expected ${expected})"
+    return
+  fi
+
+  if [[ "${current}" == "${expected}" ]]; then
+    pass "defaults -currentHost ${domain} ${key}=${expected}"
+  else
+    fail "defaults -currentHost ${domain} ${key} expected ${expected}, found ${current}"
+  fi
+}
+
 touchid_available() {
   ioreg -rd1 -c AppleBiometricServices >/dev/null 2>&1
 }
@@ -368,6 +386,7 @@ else
   check_default_equals "com.apple.menuextra.clock" "ShowDate" "1"
   check_default_equals "com.apple.menuextra.clock" "ShowAMPM" "0"
   check_default_equals "com.apple.ControlCenter" "NSStatusItem VisibleCC Clock" "1"
+  check_currenthost_default_equals "com.apple.controlcenter" "BatteryShowPercentage" "1"
 fi
 
 section "TextEdit preferences"
@@ -407,6 +426,94 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 else
   check_default_equals "NSGlobalDomain" "AppleAccentColor" "3"
   check_default_equals "NSGlobalDomain" "AppleHighlightColor" "0.752941 0.964706 0.678431 Green"
+  check_default_equals "NSGlobalDomain" "com.apple.swipescrolldirection" "0"
+  check_default_equals "NSGlobalDomain" "NavPanelFileListModeForOpenMode" "2"
+  check_default_equals "NSGlobalDomain" "NSNavPanelFileListModeForOpenMode2" "2"
+  check_default_equals "NSGlobalDomain" "NavPanelFileListModeForSaveMode" "2"
+  check_default_equals "NSGlobalDomain" "NSNavPanelFileListModeForSaveMode2" "2"
+  check_default_equals "com.apple.dock" "show-recents" "0"
+  check_default_equals "com.apple.finder" "FXPreferredViewStyle" "Nlsv"
+  check_default_equals "com.apple.finder" "FinderSpawnTab" "0"
+  check_default_equals "com.apple.finder" "NewWindowTarget" "PfHm"
+  check_default_equals "com.apple.finder" "ShowExternalHardDrivesOnDesktop" "1"
+  check_default_equals "com.apple.finder" "ShowHardDrivesOnDesktop" "1"
+  check_default_equals "com.apple.finder" "ShowMountedServersOnDesktop" "1"
+  check_default_equals "com.apple.finder" "ShowRecentTags" "0"
+  check_default_equals "com.apple.finder" "ShowRemovableMediaOnDesktop" "1"
+  check_default_equals "com.apple.WindowManager" "EnableStandardClickToShowDesktop" "0"
+  check_default_equals "com.apple.WindowManager" "HideDesktop" "1"
+  check_default_equals "com.apple.WindowManager" "StageManagerHideWidgets" "1"
+  check_default_equals "com.apple.WindowManager" "StandardHideWidgets" "1"
+
+  expected_home_uri="file://${HOME}/"
+  current_new_window_target_path="$(defaults read com.apple.finder NewWindowTargetPath 2>/dev/null || true)"
+  if [[ "${current_new_window_target_path}" == "${expected_home_uri}" ]]; then
+    pass "defaults com.apple.finder NewWindowTargetPath=${expected_home_uri}"
+  else
+    fail "defaults com.apple.finder NewWindowTargetPath expected ${expected_home_uri}, found ${current_new_window_target_path:-<unset>}"
+  fi
+fi
+
+section "Tips suppression"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  warn "Skipping Tips suppression checks on non-macOS host"
+else
+  check_default_equals "com.apple.tipsd" "TPSWaitingToShowWelcomeNotification" "0"
+  check_default_equals "com.apple.tipsd" "TPSWelcomeNotificationReminderState" "1"
+
+  ncprefs_check_output=""
+  ncprefs_check_status=0
+  ncprefs_check_output="$(
+    python3 - "${HOME}/Library/Preferences/com.apple.ncprefs.plist" <<'PY'
+import plistlib
+import sys
+from pathlib import Path
+
+ncprefs_path = Path(sys.argv[1])
+if not ncprefs_path.exists():
+    print("MISSING_FILE")
+    sys.exit(20)
+
+with ncprefs_path.open("rb") as fh:
+    data = plistlib.load(fh)
+
+apps = data.get("apps")
+if not isinstance(apps, list):
+    print("MISSING_ENTRY")
+    sys.exit(21)
+
+for entry in apps:
+    if not isinstance(entry, dict):
+        continue
+    if entry.get("bundle-id") == "com.apple.tips":
+        auth_value = entry.get("auth", "<unset>")
+        print(f"FOUND_AUTH={auth_value}")
+        sys.exit(0)
+
+print("MISSING_ENTRY")
+sys.exit(21)
+PY
+  )" || ncprefs_check_status=$?
+
+  case "${ncprefs_check_status}" in
+    0)
+      tips_auth="${ncprefs_check_output#FOUND_AUTH=}"
+      if [[ "${tips_auth}" == "0" ]]; then
+        pass "com.apple.ncprefs com.apple.tips auth=0"
+      else
+        fail "com.apple.ncprefs com.apple.tips auth expected 0, found ${tips_auth}"
+      fi
+      ;;
+    20)
+      warn "com.apple.ncprefs not found yet at ~/Library/Preferences/com.apple.ncprefs.plist"
+      ;;
+    21)
+      warn "com.apple.tips entry not present in com.apple.ncprefs yet"
+      ;;
+    *)
+      fail "Unable to parse com.apple.ncprefs for Tips auth: ${ncprefs_check_output}"
+      ;;
+  esac
 fi
 
 section "Privileged security/power"

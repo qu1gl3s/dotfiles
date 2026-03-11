@@ -45,7 +45,7 @@ After init, customize toggles in `~/.config/chezmoi/chezmoi.toml`:
 | `skipMas` | 34, 37 | Mac App Store installs via mas |
 | `skipDefender` | 36 | Microsoft Defender for Consumers installer |
 | `skipWireguardSetup` | 37 | WireGuard VPN interactive setup |
-| `skipMacosDefaults` | 40, 41, 43, 44, 47, 49 | macOS defaults (accent color, clock, TextEdit, etc.) |
+| `skipMacosDefaults` | 40, 41, 43, 44, 46, 47, 49 | macOS defaults and UX settings (Finder, Dock behavior, clock, TextEdit, Tips suppression, etc.) |
 | `skipDisplayScaling` | 42 | Built-in display "More Space" scaling |
 | `skipAppearance` | 45 | Appearance settings (dark mode, wallpaper) |
 | `skipDockLayout` | 50 | Dock app layout management |
@@ -85,7 +85,7 @@ Notes:
 - HiddenBar is installed only on notch-capable MacBooks.
 - Optional casks prompt once from `casks/optional-casks.txt`.
 - `freac-continuous` installs from upstream DMG (not a Homebrew cask token).
-- The Defender installer auto-detects PKG vs DMG downloads and handles both.
+- The Defender installer is PKG-only and validates package signature before install.
 
 ## macOS automation
 
@@ -95,15 +95,30 @@ Notes:
 - `.chezmoiscripts/run_onchange_after_43-menu-bar-clock.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_44-textedit.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_45-appearance.sh.tmpl`
+- `.chezmoiscripts/run_onchange_after_46-tips-notifications.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_47-privileged-system.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_48-system-updates-security.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_49-privacy-minimization.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_50-dock-layout.sh.tmpl`
 
-Current defaults baseline (`40`) is intentionally minimal:
+Current defaults baseline (`40`) enforces:
 
-- `NSGlobalDomain AppleAccentColor=3`
-- `NSGlobalDomain AppleHighlightColor="0.752941 0.964706 0.678431 Green"`
+- Theme + scrolling: accent/highlight colors and natural scrolling off.
+- Finder defaults: list view, open folders in windows (not tabs), home target path, desktop item visibility, recent tags off.
+- File dialogs: list-mode defaults for Open and Save panels.
+- Dock behavior: recent apps section hidden.
+- WindowManager behavior: desktop reveal-on-click disabled and desktop widgets hidden.
+
+Menu bar (`43`) also enforces:
+
+- Clock/date format baseline.
+- Battery percentage visible in menu bar via `defaults -currentHost`.
+
+Tips suppression (`46`):
+
+- Suppresses Tips welcome/reminder prompts in `com.apple.tipsd`.
+- Applies best-effort `com.apple.tips auth=0` in `com.apple.ncprefs`.
+- If Tips is not yet present in `ncprefs`, it warns and retries on later `chezmoi apply`.
 
 System updates + FileVault enforcement (`48`):
 
@@ -125,6 +140,7 @@ First-run UX deferrals:
 - MAS auth/session unavailable warns and defers app installs (slot `34`), then retries on next `chezmoi apply`.
 - Synology screenshot prerequisites missing warn and defer location enforcement (slot `41`), then retries on next `chezmoi apply`.
 - Built-in display unavailable or display apply temporarily unavailable warns and defers More Space enforcement (slot `42`), then retries on next `chezmoi apply`.
+- Slot `42` also re-runs when display state/topology changes (display fingerprint trigger), so reconnecting displays can re-enforce built-in More Space on the next `chezmoi apply`.
 
 ## Verification
 
@@ -191,6 +207,7 @@ CHEZMOI_READINESS_STRICT=1 chezmoi apply
 - `36` Defender installer
 - `37` WireGuard setup
 - `40-50` macOS UX/system settings
+- `46` Tips notification suppression
 - `48` FileVault + Software Update enforcement
 - `49` Privacy minimization (ads/analytics/Siri/Dictation)
 - `60` verification

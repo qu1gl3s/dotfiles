@@ -7,7 +7,7 @@ echo "==> [43] Skipping menu bar clock settings (disabled in chezmoi.toml)"
 set -euo pipefail
 #
 # Script: run_onchange_after_43-menu-bar-clock.sh.tmpl
-# Purpose: Enforce menu bar clock/date preferences deterministically.
+# Purpose: Enforce menu bar clock/date preferences and battery percentage deterministically.
 # Prerequisites: macOS, clock baseline file present in source dir.
 # Env override: CHEZMOI_SKIP_MACOS_DEFAULTS=1
 # Trigger hash (macos/clock-baseline.sh): {{ include "macos/clock-baseline.sh" | sha256sum }}
@@ -111,6 +111,13 @@ while IFS='|' read -r domain key type value; do
   echo "Applied ${domain} ${key}=${value}"
   restart_systemuiserver=1
 done < <(macos_clock_settings_entries)
+
+battery_percent_current="$(defaults -currentHost read com.apple.controlcenter BatteryShowPercentage 2>/dev/null || echo "<unset>")"
+if [[ "$(normalize_bool "${battery_percent_current}")" != "1" ]]; then
+  defaults -currentHost write com.apple.controlcenter BatteryShowPercentage -bool true
+  echo "Applied -currentHost com.apple.controlcenter BatteryShowPercentage=1"
+  restart_systemuiserver=1
+fi
 
 if [[ "${restart_systemuiserver}" -eq 1 ]]; then
   killall SystemUIServer >/dev/null 2>&1 || true

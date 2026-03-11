@@ -1,6 +1,31 @@
 # domain key type
 # Supported types: bool, int, float, string
 
-# NSGlobalDomain: color theme baseline only
+# NSGlobalDomain: UI baseline
 NSGlobalDomain AppleAccentColor int
 NSGlobalDomain AppleHighlightColor string
+NSGlobalDomain com.apple.swipescrolldirection bool
+NSGlobalDomain NavPanelFileListModeForOpenMode int
+NSGlobalDomain NSNavPanelFileListModeForOpenMode2 int
+NSGlobalDomain NavPanelFileListModeForSaveMode int
+NSGlobalDomain NSNavPanelFileListModeForSaveMode2 int
+
+# Dock behavior
+com.apple.dock show-recents bool
+
+# Finder behavior
+com.apple.finder FXPreferredViewStyle string
+com.apple.finder FinderSpawnTab bool
+com.apple.finder NewWindowTarget string
+com.apple.finder NewWindowTargetPath string
+com.apple.finder ShowExternalHardDrivesOnDesktop bool
+com.apple.finder ShowHardDrivesOnDesktop bool
+com.apple.finder ShowMountedServersOnDesktop bool
+com.apple.finder ShowRecentTags bool
+com.apple.finder ShowRemovableMediaOnDesktop bool
+
+# Desktop reveal/widgets behavior
+com.apple.WindowManager EnableStandardClickToShowDesktop bool
+com.apple.WindowManager HideDesktop bool
+com.apple.WindowManager StageManagerHideWidgets bool
+com.apple.WindowManager StandardHideWidgets bool

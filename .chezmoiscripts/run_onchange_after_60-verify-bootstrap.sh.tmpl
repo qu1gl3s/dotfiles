@@ -18,6 +18,7 @@ set -euo pipefail
 # Trigger hash (macos/clock-baseline.sh): {{ include "macos/clock-baseline.sh" | sha256sum }}
 # Trigger hash (macos/textedit-baseline.sh): {{ include "macos/textedit-baseline.sh" | sha256sum }}
 # Trigger hash (44-textedit): {{ include ".chezmoiscripts/run_onchange_after_44-textedit.sh.tmpl" | sha256sum }}
+# Trigger hash (46-tips-notifications): {{ include ".chezmoiscripts/run_onchange_after_46-tips-notifications.sh.tmpl" | sha256sum }}
 # Trigger hash (47-privileged-system): {{ include ".chezmoiscripts/run_onchange_after_47-privileged-system.sh.tmpl" | sha256sum }}
 # Trigger hash (48-system-updates-security): {{ include ".chezmoiscripts/run_onchange_after_48-system-updates-security.sh.tmpl" | sha256sum }}
 # Trigger hash (49-privacy-minimization): {{ include ".chezmoiscripts/run_onchange_after_49-privacy-minimization.sh.tmpl" | sha256sum }}
