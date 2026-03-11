@@ -10,7 +10,7 @@ set -euo pipefail
 # Purpose: Suppress Tips onboarding notifications and prompts.
 # Prerequisites: macOS, python3 for ncprefs plist mutation.
 # Env override: CHEZMOI_SKIP_MACOS_DEFAULTS=1
-# Trigger hash (tips convergence state): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/tips-convergence-state\"; if [ -f \"$state_file\" ]; then cat \"$state_file\"; else echo unset; fi" | sha256sum }}
+# Trigger hash (tips convergence state + ncprefs fingerprint): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/tips-convergence-state\"; if [ -f \"$state_file\" ]; then state=$(cat \"$state_file\"); else state=unset; fi; ncprefs=\"$HOME/Library/Preferences/com.apple.ncprefs.plist\"; if [ ! -f \"$ncprefs\" ]; then fp=ncprefs-missing; else fp=$(python3 - \"$ncprefs\" <<'PY'\nimport plistlib, sys\nfrom pathlib import Path\np = Path(sys.argv[1])\nwith p.open('rb') as fh:\n    data = plistlib.load(fh)\napps = data.get('apps')\nif not isinstance(apps, list):\n    print('ncprefs-no-apps')\n    raise SystemExit(0)\nfor entry in apps:\n    if isinstance(entry, dict) and entry.get('bundle-id') == 'com.apple.tips':\n        print(f\"tips-auth-{entry.get('auth', '<unset>')}\")\n        raise SystemExit(0)\nprint('tips-entry-missing')\nPY\n); fi; printf \"%s|%s\" \"$state\" \"$fp\"" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
   echo "==> [46] Skipping Tips notification suppression (CHEZMOI_SKIP_MACOS_DEFAULTS=1)"
@@ -25,7 +25,7 @@ NCPREFS_FILE="${HOME}/Library/Preferences/com.apple.ncprefs.plist"
 
 mark_pending() {
   mkdir -p "${STATE_DIR}"
-  printf 'pending-%s\n' "$(date +%s)" > "${TIPS_STATE_FILE}"
+  printf 'pending\n' > "${TIPS_STATE_FILE}"
 }
 
 mark_aligned() {
