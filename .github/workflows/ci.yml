@@ -19,13 +19,20 @@ jobs:
 
       - name: Bash syntax checks
         run: |
-          find .chezmoiscripts scripts -type f \( -name '*.sh' -o -name '*.sh.tmpl' \) -print0 \
-            | xargs -0 -n1 bash -n
+          find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          mkdir -p "${RUNNER_TEMP}/rendered-chezmoi"
+          while IFS= read -r -d '' template; do
+            rendered="${RUNNER_TEMP}/rendered-chezmoi/$(basename "${template%.tmpl}")"
+            chezmoi execute-template --source "${GITHUB_WORKSPACE}" --file "${template}" > "${rendered}"
+            bash -n "${rendered}"
+          done < <(find .chezmoiscripts -type f -name '*.sh.tmpl' -print0)
 
       - name: Shellcheck
         run: |
-          find .chezmoiscripts scripts -type f \( -name '*.sh' -o -name '*.sh.tmpl' \) -print0 \
-            | xargs -0 -n1 shellcheck
+          find scripts -type f -name '*.sh' -print0 | xargs -0 -n1 shellcheck
+          while IFS= read -r -d '' rendered; do
+            shellcheck -e SC1091,SC2050 "${rendered}"
+          done < <(find "${RUNNER_TEMP}/rendered-chezmoi" -type f -name '*.sh' -print0)
 
       - name: Chezmoi dry run
         run: |

@@ -106,7 +106,7 @@ Notes:
 
 Current defaults baseline (`40`) enforces:
 
-- Theme + scrolling: accent/highlight colors and natural scrolling off.
+- Theme + scrolling: highlight color and natural scrolling off. `AppleAccentColor` is not enforced on `MacBook Neo` (`Mac17,*`) so the model-matched hardware color can remain in place.
 - Finder defaults: list view, open folders in windows (not tabs), home target path, desktop item visibility, recent tags off.
 - File dialogs: list-mode defaults for Open and Save panels.
 - Dock behavior: recent apps section hidden.
@@ -141,9 +141,21 @@ Privacy minimization (`49`):
 First-run UX deferrals:
 
 - MAS auth/session unavailable warns and defers app installs (slot `34`), then retries on next `chezmoi apply`.
+- MAS verification prefers `/Applications` bundle presence before treating required apps as missing; a new machine can still report session/indexing warnings until App Store auth and Spotlight metadata settle.
 - Synology screenshot prerequisites missing warn and defer location enforcement (slot `41`), then retries on next `chezmoi apply`.
 - Built-in display unavailable or display apply temporarily unavailable warns and defers More Space enforcement (slot `42`), then retries on next `chezmoi apply`.
+- On `MacBook Neo` hardware, `displayplacer` may fail to enumerate the built-in panel even when lower-level display services can see it. Slot `42` treats that as a warning and retries on later applies instead of assuming display drift.
 - Slot `42` also re-runs when display state/topology changes (display fingerprint trigger), so reconnecting displays can re-enforce built-in More Space on the next `chezmoi apply`.
+
+## Post-bootstrap remediation
+
+Some setup still requires a GUI or privileged interactive session after the first bootstrap:
+
+- Sign in to the App Store, then rerun `chezmoi apply` if MAS installs or verification deferred.
+- Let Spotlight finish indexing before treating MAS verification warnings as true missing-app drift.
+- Enable FileVault in System Settings to satisfy the enforced security baseline.
+- Re-run `chezmoi apply` from an interactive shell with sudo available if firewall or stealth mode still show drift.
+- On `MacBook Neo`, treat display-scaling verification as best-effort until display tooling catches up with the hardware.
 
 ## Verification
 

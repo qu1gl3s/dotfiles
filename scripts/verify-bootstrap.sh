@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_SOURCE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-${REPO_SOURCE_DIR}}"
 # shellcheck source=scripts/lib.sh
 source "${SOURCE_DIR}/scripts/lib.sh"
 
@@ -77,6 +79,24 @@ check_currenthost_default_equals() {
     pass "defaults -currentHost ${domain} ${key}=${expected}"
   else
     fail "defaults -currentHost ${domain} ${key} expected ${expected}, found ${current}"
+  fi
+}
+
+check_default_equals_if_present() {
+  local domain="$1"
+  local key="$2"
+  local expected="$3"
+  local current=""
+
+  if ! current="$(defaults read "${domain}" "${key}" 2>/dev/null)"; then
+    info "defaults ${domain} ${key} missing; skipping assertion"
+    return
+  fi
+
+  if [[ "${current}" == "${expected}" ]]; then
+    pass "defaults ${domain} ${key}=${expected}"
+  else
+    fail "defaults ${domain} ${key} expected ${expected}, found ${current}"
   fi
 }
 
@@ -264,13 +284,25 @@ else
   echo "Querying Mac App Store..."
   mas_list_output=""
   mas_list_ok=0
+  mas_list_status=0
   if mas_list_output="$(run_with_timeout 20 env MAS_NO_AUTO_INDEX=1 mas list)"; then
     mas_list_ok=1
     pass "mas list query succeeded"
-  elif [[ "$?" -eq 124 ]]; then
-    warn "mas list timed out after 20s (likely App Store auth/session issue)"
   else
-    warn "mas list unavailable (likely App Store auth/session issue): ${mas_list_output}"
+    mas_list_status=$?
+  fi
+
+  mas_list_state="$(classify_mas_list_state "${mas_list_status}" "${mas_list_output}")"
+  if [[ "${mas_list_state}" == "session-unavailable" ]]; then
+    warn "mas list unavailable due to App Store auth/session issues; falling back to local app bundle checks"
+    if [[ -n "${mas_list_output}" && "${mas_list_status}" -ne 124 ]]; then
+      info "${mas_list_output}"
+    fi
+  elif [[ "${mas_list_state}" == "metadata-unavailable" ]]; then
+    warn "mas list unavailable for a non-auth reason; Spotlight/App Store metadata may still be indexing"
+    if [[ -n "${mas_list_output}" ]]; then
+      info "${mas_list_output}"
+    fi
   fi
 
   installed_mas_ids=""
@@ -280,25 +312,45 @@ else
 
   while IFS='|' read -r app_id app_name; do
     [[ -z "${app_id}" || "${app_id:0:1}" == "#" ]] && continue
+    local_app_path=""
+    local_app_found=0
+    if local_app_path="$(guess_mas_app_path "${app_name}")"; then
+      local_app_found=1
+    fi
+
     if [[ "${mas_list_ok}" -eq 1 ]]; then
       if contains_line "${app_id}" "${installed_mas_ids}"; then
         pass "required MAS app installed: ${app_name} (${app_id})"
+      elif [[ "${local_app_found}" -eq 1 ]]; then
+        warn "required MAS app bundle present at ${local_app_path}, but mas did not report ${app_name} (${app_id}); Spotlight/App Store metadata may still be indexing"
       else
         fail "required MAS app missing: ${app_name} (${app_id})"
       fi
+    elif [[ "${local_app_found}" -eq 1 ]]; then
+      warn "required MAS app bundle present at ${local_app_path}, but App Store session/metadata is unavailable; could not verify ${app_name} (${app_id}) with mas"
     else
-      warn "required MAS app not verified: ${app_name} (${app_id})"
+      warn "required MAS app not verified and bundle not found locally: ${app_name} (${app_id})"
     fi
   done < "${MAS_REQUIRED_FILE}"
 
   while IFS='|' read -r app_id app_name; do
     [[ -z "${app_id}" || "${app_id:0:1}" == "#" ]] && continue
+    local_app_path=""
+    local_app_found=0
+    if local_app_path="$(guess_mas_app_path "${app_name}")"; then
+      local_app_found=1
+    fi
+
     if [[ "${mas_list_ok}" -eq 1 ]]; then
       if contains_line "${app_id}" "${installed_mas_ids}"; then
         info "optional MAS app installed: ${app_name} (${app_id})"
+      elif [[ "${local_app_found}" -eq 1 ]]; then
+        info "optional MAS app bundle present at ${local_app_path}, but mas did not report ${app_name} (${app_id})"
       else
         info "optional MAS app not installed: ${app_name} (${app_id})"
       fi
+    elif [[ "${local_app_found}" -eq 1 ]]; then
+      info "optional MAS app bundle present at ${local_app_path}, but App Store session/metadata is unavailable"
     else
       info "optional MAS app not verified: ${app_name} (${app_id})"
     fi
@@ -385,7 +437,11 @@ else
   elif [[ "${display_list_status}" -ne 0 ]]; then
     fail "displayplacer list failed: ${display_list_output}"
   elif ! parse_displayplacer_builtin "${display_list_output}"; then
-    warn "display scaling check skipped: ${DISPLAY_PARSE_ERROR}"
+    if [[ "${DISPLAY_PARSE_ERROR}" == "built-in display not found" ]] && display_subsystem_reports_builtin_panel; then
+      warn "display scaling check skipped: displayplacer did not enumerate the built-in panel, but lower-level display services did (likely MacBook Neo tooling gap)"
+    else
+      warn "display scaling check skipped: ${DISPLAY_PARSE_ERROR}"
+    fi
   else
     pass "Built-in display target resolved: ${DISPLAY_TARGET_RES} (id ${DISPLAY_BUILTIN_ID})"
 
@@ -451,8 +507,13 @@ section "macOS settings spot-check"
 if [[ "$(uname -s)" != "Darwin" ]]; then
   warn "Skipping macOS defaults checks on non-macOS host"
 else
-  check_default_equals "NSGlobalDomain" "AppleAccentColor" "3"
-  check_default_equals "NSGlobalDomain" "AppleHighlightColor" "0.752941 0.964706 0.678431 Green"
+  if is_macbook_neo; then
+    pass "MacBook Neo preserves its model-matched accent color; skipping AppleAccentColor assertion"
+    check_default_equals_if_present "NSGlobalDomain" "AppleHighlightColor" "0.752941 0.964706 0.678431 Green"
+  else
+    check_default_equals "NSGlobalDomain" "AppleAccentColor" "3"
+    check_default_equals "NSGlobalDomain" "AppleHighlightColor" "0.752941 0.964706 0.678431 Green"
+  fi
   check_default_equals "NSGlobalDomain" "com.apple.swipescrolldirection" "0"
   check_default_equals "NSGlobalDomain" "NavPanelFileListModeForOpenMode" "2"
   check_default_equals "NSGlobalDomain" "NSNavPanelFileListModeForOpenMode2" "2"

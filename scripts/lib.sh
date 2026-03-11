@@ -56,6 +56,67 @@ normalize_bool() {
   esac
 }
 
+mac_model_identifier() {
+  local model_id=""
+
+  model_id="$(sysctl -n hw.model 2>/dev/null || true)"
+  if [[ -n "${model_id}" ]]; then
+    printf '%s\n' "${model_id}"
+    return 0
+  fi
+
+  model_id="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Model Identifier/ {print $2; exit}')"
+  if [[ -n "${model_id}" ]]; then
+    printf '%s\n' "${model_id}"
+  fi
+}
+
+is_macbook_neo() {
+  local model_id=""
+  model_id="$(mac_model_identifier)"
+  [[ "${model_id}" =~ ^Mac17, ]]
+}
+
+display_subsystem_reports_builtin_panel() {
+  ioreg -lw0 -r -c AppleCLCD2 >/dev/null 2>&1 || ioreg -lw0 -r -c AppleCLCD >/dev/null 2>&1
+}
+
+guess_mas_app_path() {
+  local app_name="$1"
+  local candidate=""
+
+  for candidate in \
+    "/Applications/${app_name}.app" \
+    "/System/Applications/${app_name}.app"; do
+    if [[ -d "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+mas_output_indicates_auth_issue() {
+  local output="$1"
+  grep -Eqi 'sign in|not signed|no account|account.*required|authentication|authenticate|login required' <<<"${output}"
+}
+
+classify_mas_list_state() {
+  local status="$1"
+  local output="$2"
+
+  if [[ "${status}" -eq 0 ]]; then
+    printf 'ok\n'
+  elif [[ "${status}" -eq 124 ]]; then
+    printf 'session-unavailable\n'
+  elif mas_output_indicates_auth_issue "${output}"; then
+    printf 'session-unavailable\n'
+  else
+    printf 'metadata-unavailable\n'
+  fi
+}
+
 # -- Defender ------------------------------------------------------------------
 
 is_defender_installed() {

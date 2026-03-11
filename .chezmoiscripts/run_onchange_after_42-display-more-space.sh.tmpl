@@ -44,6 +44,10 @@ defer_with_warning() {
   exit 0
 }
 
+display_subsystem_reports_builtin_panel() {
+  ioreg -lw0 -r -c AppleCLCD2 >/dev/null 2>&1 || ioreg -lw0 -r -c AppleCLCD >/dev/null 2>&1
+}
+
 if [[ -x /opt/homebrew/bin/brew ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
 fi
@@ -130,6 +134,9 @@ if [[ -n "${current_id}" ]]; then
 fi
 
 if [[ "${builtin_count}" -eq 0 ]]; then
+  if display_subsystem_reports_builtin_panel; then
+    defer_with_warning "displayplacer did not enumerate the built-in panel, but lower-level display services did. Deferring display scaling on this Mac until tooling catches up."
+  fi
   defer_with_warning "Built-in display not detected (clamshell/external-only). Open built-in display and rerun chezmoi apply."
 fi
 

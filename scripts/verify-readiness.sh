@@ -1,10 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_SOURCE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-${REPO_SOURCE_DIR}}"
 # shellcheck source=scripts/lib.sh
 source "${SOURCE_DIR}/scripts/lib.sh"
 
+MAS_REQUIRED_FILE="${SOURCE_DIR}/mas/apps.txt"
 READINESS_STATE_DIR="${HOME}/.local/state/chezmoi/readiness"
 DEFENDER_ACK_FILE="${READINESS_STATE_DIR}/defender-approvals-reboot.done"
 ISTAT_ACK_FILE="${READINESS_STATE_DIR}/istat-profile-import.done"
@@ -45,15 +48,36 @@ check_app_store_auth() {
   local mas_output=""
   local mas_status=0
   mas_output="$(run_with_timeout 20 env MAS_NO_AUTO_INDEX=1 mas list)" || mas_status=$?
+  local mas_state=""
+  mas_state="$(classify_mas_list_state "${mas_status}" "${mas_output}")"
+  local missing_local_apps=()
+  local present_local_apps=()
 
-  if [[ "${mas_status}" -eq 0 ]]; then
+  if [[ -f "${MAS_REQUIRED_FILE}" ]]; then
+    while IFS='|' read -r app_id app_name; do
+      [[ -z "${app_id}" || "${app_id:0:1}" == "#" ]] && continue
+      if guess_mas_app_path "${app_name}" >/dev/null; then
+        present_local_apps+=( "${app_name}" )
+      else
+        missing_local_apps+=( "${app_name}" )
+      fi
+    done < "${MAS_REQUIRED_FILE}"
+  fi
+
+  if [[ "${mas_state}" == "ok" ]]; then
     pass "App Store authentication appears available for mas operations."
-  elif [[ "${mas_status}" -eq 124 ]]; then
-    todo "App Store authentication/session likely unavailable (mas list timed out). Sign in to App Store and rerun apply."
-  elif grep -Eqi 'sign in|not signed|no account|account.*required' <<<"${mas_output}"; then
-    todo "App Store authentication required. Sign in to App Store and rerun apply."
+  elif [[ "${mas_state}" == "session-unavailable" && "${#missing_local_apps[@]}" -eq 0 && "${#present_local_apps[@]}" -gt 0 ]]; then
+    warn "App Store session/auth could not be confirmed, but all required MAS app bundles are present locally (${present_local_apps[*]}). This is likely a session-only issue."
+  elif [[ "${mas_state}" == "session-unavailable" ]]; then
+    todo "App Store authentication/session unavailable and required MAS apps are still missing locally (${missing_local_apps[*]:-unknown}). Sign in to App Store and rerun apply."
+  elif [[ "${#missing_local_apps[@]}" -eq 0 && "${#present_local_apps[@]}" -gt 0 ]]; then
+    warn "App Store metadata is not ready, but all required MAS app bundles are present locally (${present_local_apps[*]}). Spotlight/App Store indexing may still be catching up."
   else
-    warn "Could not confirm App Store auth via mas: ${mas_output}"
+    todo "App Store metadata is not ready and required MAS apps are missing locally (${missing_local_apps[*]:-unknown}). Let Spotlight/App Store indexing finish, then rerun apply."
+  fi
+
+  if [[ "${mas_state}" != "ok" && -n "${mas_output}" ]]; then
+    warn "mas diagnostics: ${mas_output}"
   fi
 }
 
