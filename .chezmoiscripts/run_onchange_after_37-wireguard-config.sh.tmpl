@@ -1,34 +1,33 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if or .skipBrew .skipMas .skipWireguardSetup -}}
+#!/bin/bash
+echo "==> [37] Skipping WireGuard setup (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_37-wireguard-config.sh.tmpl
 # Purpose: Offer interactive WireGuard tunnel setup and re-prompt until configured.
 # Prerequisites: macOS and WireGuard app installed from the Mac App Store.
-# Env flags:
-#   CHEZMOI_SKIP_BREW=1 skips this script
-#   CHEZMOI_SKIP_MAS=1 skips this script
-#   CHEZMOI_SKIP_WIREGUARD_SETUP=1 skips this script
-# Failure behavior: exits non-zero only when the user chooses setup and required writes fail.
+# Env overrides: CHEZMOI_SKIP_BREW=1, CHEZMOI_SKIP_MAS=1, CHEZMOI_SKIP_WIREGUARD_SETUP=1
 # Trigger hash (configured state): {{ output "bash" "-lc" "if scutil --nc list 2>/dev/null | grep -Eq '\\(com\\.wireguard\\.macos\\)|\\[VPN:com\\.wireguard\\.macos\\]'; then echo configured; elif [ -f \"$HOME/.local/state/chezmoi/wireguard-configured\" ]; then echo configured; else echo \"unconfigured-$(date +%s)\"; fi" | sha256sum }}
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
-
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
-  echo "Skipping WireGuard setup because CHEZMOI_SKIP_BREW=1"
+  echo "==> [37] Skipping WireGuard setup (CHEZMOI_SKIP_BREW=1)"
   exit 0
 fi
 
 if [[ "${CHEZMOI_SKIP_MAS:-0}" == "1" ]]; then
-  echo "Skipping WireGuard setup because CHEZMOI_SKIP_MAS=1"
+  echo "==> [37] Skipping WireGuard setup (CHEZMOI_SKIP_MAS=1)"
   exit 0
 fi
 
 if [[ "${CHEZMOI_SKIP_WIREGUARD_SETUP:-0}" == "1" ]]; then
-  echo "Skipping WireGuard setup because CHEZMOI_SKIP_WIREGUARD_SETUP=1"
+  echo "==> [37] Skipping WireGuard setup (CHEZMOI_SKIP_WIREGUARD_SETUP=1)"
   exit 0
 fi
+
+echo "==> [37] WireGuard setup"
 
 WIREGUARD_APP="/Applications/WireGuard.app"
 WIREGUARD_BUNDLE_ID="com.wireguard.macos"
@@ -200,3 +199,4 @@ case "${mark_done}" in
     echo "WireGuard not marked configured yet. You will be prompted again on next chezmoi apply."
     ;;
 esac
+{{ end -}}

@@ -1,0 +1,106 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipDefender -}}
+#!/bin/bash
+echo "==> [36] Skipping Microsoft Defender install (disabled in chezmoi.toml)"
+{{ else -}}
+#!/bin/bash
+set -euo pipefail
+#
+# Script: run_once_after_36-microsoft-defender-consumer.sh.tmpl
+# Purpose: Install Microsoft Defender for Consumers from Microsoft's fwlink.
+# Prerequisites: macOS, internet access, admin privileges.
+# Env override: CHEZMOI_SKIP_DEFENDER=1
+
+if [[ "${CHEZMOI_SKIP_DEFENDER:-0}" == "1" ]]; then
+  echo "==> [36] Skipping Microsoft Defender install (CHEZMOI_SKIP_DEFENDER=1)"
+  exit 0
+fi
+
+echo "==> [36] Microsoft Defender installer"
+
+SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
+# shellcheck source=scripts/lib.sh
+source "${SOURCE_DIR}/scripts/lib.sh"
+
+DEFENDER_URL="https://go.microsoft.com/fwlink/?linkid=2247001"
+
+if is_defender_installed; then
+  echo "Microsoft Defender already installed; skipping."
+  exit 0
+fi
+
+tmp_dir="$(mktemp -d)"
+download_path="${tmp_dir}/defender-installer"
+mount_point=""
+
+cleanup() {
+  if [[ -n "${mount_point}" && -d "${mount_point}" ]]; then
+    hdiutil detach "${mount_point}" >/dev/null 2>&1 || true
+  fi
+  rm -rf "${tmp_dir}"
+}
+trap cleanup EXIT
+
+echo "Downloading Microsoft Defender installer..."
+curl -fL --retry 3 --retry-delay 2 -o "${download_path}" "${DEFENDER_URL}"
+
+if [[ ! -s "${download_path}" ]]; then
+  echo "Downloaded installer is empty: ${download_path}" >&2
+  exit 1
+fi
+
+file_type="$(file -b "${download_path}")"
+
+install_from_dmg() {
+  echo "Mounting installer disk image..."
+  local attach_output=""
+  attach_output="$(hdiutil attach -nobrowse "${download_path}")"
+  mount_point="$(sed -n 's/.*\(\/Volumes\/.*\)/\1/p' <<< "${attach_output}" | head -n1)"
+
+  if [[ -z "${mount_point}" || ! -d "${mount_point}" ]]; then
+    echo "Unable to resolve mounted installer volume." >&2
+    exit 1
+  fi
+
+  echo "Searching for installable content in ${mount_point}..."
+  local pkg_path=""
+  local app_path=""
+  pkg_path="$(find "${mount_point}" -maxdepth 3 -type f -name '*.pkg' | head -n1 || true)"
+  app_path="$(find "${mount_point}" -maxdepth 3 -type d -name '*.app' | head -n1 || true)"
+
+  if [[ -n "${pkg_path}" ]]; then
+    echo "Installing package: ${pkg_path}"
+    sudo /usr/sbin/installer -pkg "${pkg_path}" -target /
+  elif [[ -n "${app_path}" ]]; then
+    echo "Installing app bundle: ${app_path}"
+    sudo /usr/bin/ditto "${app_path}" "/Applications/$(basename "${app_path}")"
+  else
+    echo "No installable pkg/app found in mounted volume: ${mount_point}" >&2
+    exit 1
+  fi
+}
+
+if [[ "${file_type}" == *"xar archive"* ]]; then
+  echo "Detected PKG installer; installing directly..."
+  sudo /usr/sbin/installer -pkg "${download_path}" -target /
+elif [[ "${file_type}" == *"zlib compressed"* ]] || [[ "${file_type}" == *"Apple Disk Image"* ]] || [[ "${file_type}" == *"Apple Driver Map"* ]]; then
+  install_from_dmg
+else
+  echo "Unknown file type for downloaded installer: ${file_type}" >&2
+  echo "Attempting DMG mount as fallback..."
+  install_from_dmg
+fi
+
+if ! is_defender_installed; then
+  echo "Microsoft Defender app was not detected after installer run." >&2
+  exit 1
+fi
+
+cat <<'POSTINSTALL'
+Microsoft Defender app installation completed.
+
+Manual post-install steps required by macOS:
+1) Approve Microsoft system extensions and network extensions in System Settings.
+2) Reboot after approvals.
+POSTINSTALL
+{{ end -}}

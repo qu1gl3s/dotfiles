@@ -184,6 +184,7 @@ if [[ ! -f "${BREWFILE}" ]]; then
 elif ! command -v brew >/dev/null 2>&1; then
   warn "Skipping Brewfile install checks because brew is missing"
 else
+  echo "Checking installed formulas..."
   installed_formulas="$(brew list --formula 2>/dev/null || true)"
   while read -r formula; do
     [[ -z "${formula}" ]] && continue
@@ -195,6 +196,7 @@ else
     fi
   done < <(awk -F'"' '/^brew / { print $2 }' "${BREWFILE}")
 
+  echo "Checking installed casks..."
   installed_casks="$(brew list --cask 2>/dev/null || true)"
   while read -r cask; do
     [[ -z "${cask}" ]] && continue
@@ -214,6 +216,7 @@ elif [[ ! -f "${MAS_OPTIONAL_FILE}" ]]; then
 elif ! command -v mas >/dev/null 2>&1; then
   warn "Skipping MAS app checks because mas is missing"
 else
+  echo "Querying Mac App Store..."
   mas_list_output=""
   mas_list_ok=0
   if mas_list_output="$(run_with_timeout 20 env MAS_NO_AUTO_INDEX=1 mas list)"; then
@@ -468,6 +471,7 @@ section "System updates + FileVault"
 if [[ "$(uname -s)" != "Darwin" ]]; then
   warn "Skipping FileVault/software update checks on non-macOS host"
 else
+  echo "Checking FileVault status..."
   filevault_status="$(fdesetup status 2>/dev/null || true)"
   if grep -Eq '^FileVault is On\.' <<< "${filevault_status}"; then
     pass "FileVault is enabled"
@@ -475,6 +479,7 @@ else
     fail "FileVault is not enabled"
   fi
 
+  echo "Checking Software Update schedule..."
   softwareupdate_schedule_output="$(softwareupdate --schedule 2>/dev/null || true)"
   if grep -Eqi 'turned on' <<< "${softwareupdate_schedule_output}"; then
     pass "softwareupdate automatic schedule is on"

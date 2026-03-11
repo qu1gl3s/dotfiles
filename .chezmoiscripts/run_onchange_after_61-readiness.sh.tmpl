@@ -1,30 +1,30 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipReadiness -}}
+#!/bin/bash
+echo "==> [61] Skipping readiness checklist (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_61-readiness.sh.tmpl
 # Purpose: Run post-apply readiness checklist for manual follow-ups.
 # Prerequisites: scripts/verify-readiness.sh exists in source dir.
-# Env flags:
-#   CHEZMOI_SKIP_READINESS=1 skips this script
-#   CHEZMOI_READINESS_STRICT=1 makes readiness fail on pending TODO/FAIL items
-# Failure behavior: exits non-zero when verifier is missing or strict mode fails checks.
+# Env overrides: CHEZMOI_SKIP_READINESS=1, CHEZMOI_READINESS_STRICT=1
 # Trigger hash (scripts/verify-readiness.sh): {{ include "scripts/verify-readiness.sh" | sha256sum }}
 # Trigger hash (scripts/readiness-ack.sh): {{ include "scripts/readiness-ack.sh" | sha256sum }}
 # Trigger hash (mas/apps.txt): {{ include "mas/apps.txt" | sha256sum }}
 # Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
 # Trigger hash (wireguard hook): {{ include ".chezmoiscripts/run_onchange_after_37-wireguard-config.sh.tmpl" | sha256sum }}
 # Trigger hash (screenshot hook): {{ include ".chezmoiscripts/run_onchange_after_41-screenshot-location.sh.tmpl" | sha256sum }}
-# Trigger hash (defender hook): {{ include ".chezmoiscripts/run_once_after_36-microsoft-defender-consumer.sh" | sha256sum }}
+# Trigger hash (defender hook): {{ include ".chezmoiscripts/run_once_after_36-microsoft-defender-consumer.sh.tmpl" | sha256sum }}
 # Trigger hash (48-system-updates-security): {{ include ".chezmoiscripts/run_onchange_after_48-system-updates-security.sh.tmpl" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_READINESS:-0}" == "1" ]]; then
-  echo "Skipping readiness checklist because CHEZMOI_SKIP_READINESS=1"
+  echo "==> [61] Skipping readiness checklist (CHEZMOI_SKIP_READINESS=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [61] Readiness checklist"
 
 SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
 VERIFY_SCRIPT="${SOURCE_DIR}/scripts/verify-readiness.sh"
@@ -34,4 +34,10 @@ if [[ ! -f "${VERIFY_SCRIPT}" ]]; then
   exit 1
 fi
 
+export CHEZMOI_READINESS_STRICT="{{ .readinessStrict }}"
+if [[ "${CHEZMOI_READINESS_STRICT}" != "true" ]]; then
+  CHEZMOI_READINESS_STRICT="${CHEZMOI_READINESS_STRICT:-0}"
+fi
+
 bash "${VERIFY_SCRIPT}"
+{{ end -}}

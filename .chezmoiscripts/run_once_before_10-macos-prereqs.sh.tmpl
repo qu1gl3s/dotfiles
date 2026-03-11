@@ -1,20 +1,22 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipBrew -}}
+#!/bin/bash
+echo "==> [10] Skipping macOS prerequisites (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
-# Script: run_once_before_10-macos-prereqs.sh
+# Script: run_once_before_10-macos-prereqs.sh.tmpl
 # Purpose: Ensure macOS bootstrap prerequisites are available once per machine.
 # Prerequisites: macOS (Apple Silicon), internet access, admin privileges.
-# Env flags: CHEZMOI_SKIP_BREW=1 skips this script.
-# Failure behavior: exits non-zero with actionable errors when Homebrew/CLT checks fail.
+# Env override: CHEZMOI_SKIP_BREW=1
 
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
-  echo "Skipping macOS prerequisites because CHEZMOI_SKIP_BREW=1"
+  echo "==> [10] Skipping macOS prerequisites (CHEZMOI_SKIP_BREW=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [10] macOS prerequisites"
 
 if [[ "$(uname -m)" != "arm64" ]]; then
   echo "This bootstrap supports Apple Silicon only (arm64)." >&2
@@ -39,11 +41,4 @@ if ! command -v brew >/dev/null 2>&1; then
   echo "Homebrew installation failed. Re-run bootstrap after fixing Homebrew." >&2
   exit 1
 fi
-
-if ! xcode-select -p >/dev/null 2>&1; then
-  cat >&2 <<'EOF'
-Xcode Command Line Tools are not available after Homebrew install.
-Re-run bootstrap after confirming CLT installation is complete.
-EOF
-  exit 1
-fi
+{{ end -}}

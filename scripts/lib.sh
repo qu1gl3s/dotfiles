@@ -12,6 +12,10 @@ WIREGUARD_BUNDLE_ID="com.wireguard.macos"
 WIREGUARD_MARKER_FILE="${HOME}/.local/state/chezmoi/wireguard-configured"
 WIREGUARD_SCUTIL_SENTINEL="scutil-detected"
 
+# -- Logging -------------------------------------------------------------------
+
+log_step() { echo "==> $1"; }
+
 # -- Utility -------------------------------------------------------------------
 
 run_with_timeout() {

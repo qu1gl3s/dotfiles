@@ -1,31 +1,30 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if or .skipBrew .skipMas -}}
+#!/bin/bash
+echo "==> [34] Skipping Mac App Store installs (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_34-mas-apps.sh.tmpl
 # Purpose: Install required Mac App Store apps with mas.
 # Prerequisites: macOS, Homebrew mas formula installed, App Store login.
-# Env flags:
-#   CHEZMOI_SKIP_BREW=1 skips this script
-#   CHEZMOI_SKIP_MAS=1 skips this script
-#   CHEZMOI_INSTALL_OPTIONAL=1 also installs apps from mas/optional-apps.txt
-# Failure behavior: exits non-zero only for true config/install errors; App Store auth/session issues warn and defer.
+# Env overrides: CHEZMOI_SKIP_BREW=1, CHEZMOI_SKIP_MAS=1, CHEZMOI_INSTALL_OPTIONAL=1
 # Trigger hash (mas/apps.txt): {{ include "mas/apps.txt" | sha256sum }}
 # Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
 # Trigger hash (mas convergence state): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/mas-convergence-state\"; if [ -f \"$state_file\" ]; then cat \"$state_file\"; else echo unset; fi" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
-  echo "Skipping Mac App Store installs because CHEZMOI_SKIP_BREW=1"
+  echo "==> [34] Skipping Mac App Store installs (CHEZMOI_SKIP_BREW=1)"
   exit 0
 fi
 
 if [[ "${CHEZMOI_SKIP_MAS:-0}" == "1" ]]; then
-  echo "Skipping Mac App Store installs because CHEZMOI_SKIP_MAS=1"
+  echo "==> [34] Skipping Mac App Store installs (CHEZMOI_SKIP_MAS=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [34] Mac App Store installs"
 
 if [[ -x /opt/homebrew/bin/brew ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -51,12 +50,16 @@ if [[ ! -f "${MAS_APPS_FILE}" ]]; then
   exit 1
 fi
 
-if [[ "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" && ! -f "${MAS_OPTIONAL_APPS_FILE}" ]]; then
+install_optional="{{ .installOptional }}"
+if [[ "${install_optional}" == "true" || "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" ]]; then
+  install_optional="1"
+fi
+
+if [[ "${install_optional}" == "1" && ! -f "${MAS_OPTIONAL_APPS_FILE}" ]]; then
   echo "Optional Mac App Store app list not found: ${MAS_OPTIONAL_APPS_FILE}" >&2
   exit 1
 fi
 
-# Avoid Spotlight auto-index delays/noise from mas.
 export MAS_NO_AUTO_INDEX=1
 
 mark_pending() {
@@ -112,6 +115,7 @@ defer_for_auth() {
   exit 0
 }
 
+echo "Querying Mac App Store..."
 mas_list_output=""
 mas_list_status=0
 mas_list_output="$(run_with_timeout 20 env MAS_NO_AUTO_INDEX=1 mas list)" || mas_list_status=$?
@@ -178,7 +182,7 @@ if ! install_apps_from_file "${MAS_APPS_FILE}" "required"; then
   exit "${install_result}"
 fi
 
-if [[ "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" ]]; then
+if [[ "${install_optional}" == "1" ]]; then
   if ! install_apps_from_file "${MAS_OPTIONAL_APPS_FILE}" "optional"; then
     install_result=$?
     if [[ "${install_result}" -eq 10 ]]; then
@@ -190,3 +194,4 @@ if [[ "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" ]]; then
 fi
 
 mark_aligned
+{{ end -}}

@@ -1,30 +1,29 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if or .skipDockLayout .skipBrew -}}
+#!/bin/bash
+echo "==> [50] Skipping Dock layout (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
-# Script: run_onchange_after_50-dock-layout.sh
+# Script: run_onchange_after_50-dock-layout.sh.tmpl
 # Purpose: Rebuild Dock app layout to the baseline order using dockutil.
 # Prerequisites: macOS, Homebrew Bash, dockutil, and macos/dock-app-order.txt present.
-# Env flags:
-#   CHEZMOI_SKIP_DOCK_LAYOUT=1 skips this script
-#   CHEZMOI_SKIP_BREW=1 skips this script because dockutil is Homebrew-managed
-# Failure behavior: exits non-zero if Homebrew Bash/dockutil/order file is missing or Dock reset fails.
+# Env overrides: CHEZMOI_SKIP_DOCK_LAYOUT=1, CHEZMOI_SKIP_BREW=1
 # Trigger hash (macos/dock-app-order.txt): {{ include "macos/dock-app-order.txt" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_DOCK_LAYOUT:-0}" == "1" ]]; then
-  echo "Skipping Dock layout because CHEZMOI_SKIP_DOCK_LAYOUT=1"
+  echo "==> [50] Skipping Dock layout (CHEZMOI_SKIP_DOCK_LAYOUT=1)"
   exit 0
 fi
 
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
-  echo "Skipping Dock layout because CHEZMOI_SKIP_BREW=1"
+  echo "==> [50] Skipping Dock layout (CHEZMOI_SKIP_BREW=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [50] Dock layout"
 
-# Use Homebrew Bash for modern features (e.g., mapfile).
 if [[ "${BASH_VERSINFO[0]:-0}" -lt 4 ]]; then
   if [[ -x /opt/homebrew/bin/bash ]]; then
     exec /opt/homebrew/bin/bash "$0" "$@"
@@ -88,3 +87,4 @@ done
 
 killall Dock >/dev/null 2>&1 || true
 echo "Dock layout applied (${added_count} added, ${missing_count} missing)."
+{{ end -}}

@@ -1,20 +1,22 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipBrew -}}
+#!/bin/bash
+echo "==> [35] Skipping optional cask prompt (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
-# Script: run_once_after_35-optional-casks.sh
+# Script: run_once_after_35-optional-casks.sh.tmpl
 # Purpose: Prompt once for optional Homebrew cask installs.
 # Prerequisites: macOS with Homebrew available in /opt/homebrew.
-# Env flags: CHEZMOI_SKIP_BREW=1 skips this script.
-# Failure behavior: exits non-zero if Homebrew is unavailable or chosen cask install fails.
+# Env override: CHEZMOI_SKIP_BREW=1
 
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
-  echo "Skipping optional cask prompt because CHEZMOI_SKIP_BREW=1"
+  echo "==> [35] Skipping optional cask prompt (CHEZMOI_SKIP_BREW=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [35] Optional cask prompt"
 
 if [[ -x /opt/homebrew/bin/brew ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -91,3 +93,4 @@ while read -r cask_token; do
       ;;
   esac
 done < "${OPTIONAL_CASKS_FILE}"
+{{ end -}}

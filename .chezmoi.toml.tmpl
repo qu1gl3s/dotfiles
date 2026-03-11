@@ -1,0 +1,75 @@
+# chezmoi configuration
+# Generated during: chezmoi init
+# Edit after init: ~/.config/chezmoi/chezmoi.toml
+# Regenerate from template: chezmoi init
+
+progress = true
+
+[data]
+    # Feature toggles -- set to true to permanently skip a step on this machine.
+    # Each flag also has a one-off env-var override (shown in comments) that
+    # takes effect for a single run without changing the config file.
+
+    # Homebrew formulas, casks, and tools that depend on brew.
+    # Env: CHEZMOI_SKIP_BREW=1
+    skipBrew = false
+
+    # Mac App Store installs via mas.
+    # Env: CHEZMOI_SKIP_MAS=1
+    skipMas = false
+
+    # Microsoft Defender for Consumers installer.
+    # Env: CHEZMOI_SKIP_DEFENDER=1
+    skipDefender = false
+
+    # WireGuard VPN interactive setup.
+    # Env: CHEZMOI_SKIP_WIREGUARD_SETUP=1
+    skipWireguardSetup = false
+
+    # macOS defaults (accent color, highlight, clock, TextEdit, screenshot location).
+    # Env: CHEZMOI_SKIP_MACOS_DEFAULTS=1
+    skipMacosDefaults = false
+
+    # Built-in display "More Space" scaling enforcement.
+    # Env: CHEZMOI_SKIP_DISPLAY_SCALING=1
+    skipDisplayScaling = false
+
+    # Appearance settings (dark mode, wallpaper).
+    # Env: CHEZMOI_SKIP_APPEARANCE=1
+    skipAppearance = false
+
+    # Dock app layout management.
+    # Env: CHEZMOI_SKIP_DOCK_LAYOUT=1
+    skipDockLayout = false
+
+    # Privileged system settings (firewall, stealth, pmset, Touch ID sudo).
+    # Env: CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1
+    skipPrivilegedSystem = false
+
+    # FileVault + Software Update enforcement.
+    # Env: CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1
+    skipSystemUpdatesSecurity = false
+
+    # Privacy minimization (ads, analytics, Siri, Dictation).
+    # Env: CHEZMOI_SKIP_PRIVACY_MIN=1
+    skipPrivacyMin = false
+
+    # Post-apply bootstrap verification.
+    # Env: CHEZMOI_SKIP_VERIFY=1
+    skipVerify = false
+
+    # Post-apply readiness checklist.
+    # Env: CHEZMOI_SKIP_READINESS=1
+    skipReadiness = false
+
+    # Include Brewfile.optional in brew bundle runs.
+    # Env: CHEZMOI_INSTALL_OPTIONAL=1
+    installOptional = false
+
+    # Fail chezmoi apply on verification failures.
+    # Env: CHEZMOI_VERIFY_STRICT=1
+    verifyStrict = false
+
+    # Fail chezmoi apply on readiness TODO/FAIL items.
+    # Env: CHEZMOI_READINESS_STRICT=1
+    readinessStrict = false

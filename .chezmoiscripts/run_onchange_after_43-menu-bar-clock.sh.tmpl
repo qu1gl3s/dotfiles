@@ -1,20 +1,23 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipMacosDefaults -}}
+#!/bin/bash
+echo "==> [43] Skipping menu bar clock settings (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
-# Script: run_onchange_after_43-menu-bar-clock.sh
+# Script: run_onchange_after_43-menu-bar-clock.sh.tmpl
 # Purpose: Enforce menu bar clock/date preferences deterministically.
 # Prerequisites: macOS, clock baseline file present in source dir.
-# Env flags: CHEZMOI_SKIP_MACOS_DEFAULTS=1 skips this script.
-# Failure behavior: exits non-zero on malformed settings entries or defaults write failures.
+# Env override: CHEZMOI_SKIP_MACOS_DEFAULTS=1
+# Trigger hash (macos/clock-baseline.sh): {{ include "macos/clock-baseline.sh" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
-  echo "Skipping menu bar clock settings because CHEZMOI_SKIP_MACOS_DEFAULTS=1"
+  echo "==> [43] Skipping menu bar clock settings (CHEZMOI_SKIP_MACOS_DEFAULTS=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [43] Menu bar clock settings"
 
 SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
 BASELINE_FILE="${SOURCE_DIR}/macos/clock-baseline.sh"
@@ -112,3 +115,4 @@ done < <(macos_clock_settings_entries)
 if [[ "${restart_systemuiserver}" -eq 1 ]]; then
   killall SystemUIServer >/dev/null 2>&1 || true
 fi
+{{ end -}}

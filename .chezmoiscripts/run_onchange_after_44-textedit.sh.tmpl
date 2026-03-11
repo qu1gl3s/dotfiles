@@ -1,26 +1,29 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipMacosDefaults -}}
+#!/bin/bash
+echo "==> [44] Skipping TextEdit preferences (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
-# Script: run_onchange_after_44-textedit.sh
-# Purpose: Enforce TextEdit plain text defaults and disable spell-related features.
-# Prerequisites: macOS, TextEdit baseline file present in source dir.
-# Env flags: CHEZMOI_SKIP_MACOS_DEFAULTS=1 skips this script.
-# Failure behavior: exits non-zero on malformed settings entries or defaults write failures.
+# Script: run_onchange_after_44-textedit.sh.tmpl
+# Purpose: Enforce TextEdit plain-text and spellcheck preferences.
+# Prerequisites: macOS, textedit baseline file present in source dir.
+# Env override: CHEZMOI_SKIP_MACOS_DEFAULTS=1
+# Trigger hash (macos/textedit-baseline.sh): {{ include "macos/textedit-baseline.sh" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
-  echo "Skipping TextEdit defaults because CHEZMOI_SKIP_MACOS_DEFAULTS=1"
+  echo "==> [44] Skipping TextEdit preferences (CHEZMOI_SKIP_MACOS_DEFAULTS=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [44] TextEdit preferences"
 
 SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
 BASELINE_FILE="${SOURCE_DIR}/macos/textedit-baseline.sh"
 
 if [[ ! -f "${BASELINE_FILE}" ]]; then
-  echo "Missing TextEdit baseline file: ${BASELINE_FILE}" >&2
+  echo "Missing textedit baseline file: ${BASELINE_FILE}" >&2
   exit 1
 fi
 
@@ -52,9 +55,6 @@ values_equal() {
     int)
       [[ "${current}" == "${desired}" ]]
       ;;
-    string)
-      [[ "${current}" == "${desired}" ]]
-      ;;
     *)
       return 1
       ;;
@@ -81,15 +81,12 @@ write_setting() {
       esac
       ;;
     int) defaults write "${domain}" "${key}" -int "${value}" ;;
-    string) defaults write "${domain}" "${key}" -string "${value}" ;;
     *)
       echo "Unsupported type '${type}' for ${domain} ${key}" >&2
       return 1
       ;;
   esac
 }
-
-changes_applied=0
 
 while IFS='|' read -r domain key type value; do
   [[ -z "${domain}" || "${domain:0:1}" == "#" ]] && continue
@@ -106,9 +103,5 @@ while IFS='|' read -r domain key type value; do
 
   write_setting "${domain}" "${key}" "${type}" "${value}"
   echo "Applied ${domain} ${key}=${value}"
-  changes_applied=1
 done < <(macos_textedit_settings_entries)
-
-if [[ "${changes_applied}" -eq 1 ]]; then
-  echo "TextEdit preferences updated; reopen TextEdit to pick up default behavior changes."
-fi
+{{ end -}}

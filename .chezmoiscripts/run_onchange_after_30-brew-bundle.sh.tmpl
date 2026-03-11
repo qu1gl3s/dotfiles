@@ -1,22 +1,24 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipBrew -}}
+#!/bin/bash
+echo "==> [30] Skipping Homebrew bundle (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_30-brew-bundle.sh.tmpl
 # Purpose: Apply Homebrew package state when Brewfile inputs change.
 # Prerequisites: macOS with Homebrew available in /opt/homebrew.
-# Env flags: CHEZMOI_SKIP_BREW=1 skips all bundle actions; CHEZMOI_INSTALL_OPTIONAL=1 adds Brewfile.optional.
-# Failure behavior: exits non-zero if Homebrew is missing or brew bundle fails.
+# Env overrides: CHEZMOI_SKIP_BREW=1, CHEZMOI_INSTALL_OPTIONAL=1
 # Trigger hash (Brewfile): {{ include "Brewfile" | sha256sum }}
 # Trigger hash (Brewfile.optional): {{ include "Brewfile.optional" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
-  echo "Skipping Homebrew bundle because CHEZMOI_SKIP_BREW=1"
+  echo "==> [30] Skipping Homebrew bundle (CHEZMOI_SKIP_BREW=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [30] Homebrew bundle"
 
 if [[ -x /opt/homebrew/bin/brew ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -32,8 +34,14 @@ EOF
 fi
 
 SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
+
+echo "Installing Homebrew packages..."
 brew bundle --file "${SOURCE_DIR}/Brewfile"
 
-if [[ "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" && -f "${SOURCE_DIR}/Brewfile.optional" ]]; then
-  brew bundle --file "${SOURCE_DIR}/Brewfile.optional"
+if [[ "{{ .installOptional }}" == "true" || "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" ]]; then
+  if [[ -f "${SOURCE_DIR}/Brewfile.optional" ]]; then
+    echo "Installing optional Homebrew packages..."
+    brew bundle --file "${SOURCE_DIR}/Brewfile.optional"
+  fi
 fi
+{{ end -}}

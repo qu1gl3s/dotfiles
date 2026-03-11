@@ -1,20 +1,22 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipBrew -}}
+#!/bin/bash
+echo "==> [31] Skipping HiddenBar notch check (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_31-hiddenbar-notch.sh.tmpl
 # Purpose: Install HiddenBar only on Apple Silicon MacBooks with a notched display era profile.
 # Prerequisites: macOS, Homebrew available in /opt/homebrew.
-# Env flags: CHEZMOI_SKIP_BREW=1 skips this script.
-# Failure behavior: exits non-zero if Homebrew is unavailable when required.
+# Env override: CHEZMOI_SKIP_BREW=1
 
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
-  echo "Skipping HiddenBar notch check because CHEZMOI_SKIP_BREW=1"
+  echo "==> [31] Skipping HiddenBar notch check (CHEZMOI_SKIP_BREW=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [31] HiddenBar notch check"
 
 if [[ -x /opt/homebrew/bin/brew ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -25,8 +27,10 @@ if ! command -v brew >/dev/null 2>&1; then
   exit 1
 fi
 
-model_name="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Model Name/ {print $2; exit}')"
-chip_name="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F': ' '/Chip/ {print $2; exit}')"
+echo "Querying hardware profile..."
+hw_data="$(system_profiler SPHardwareDataType 2>/dev/null)"
+model_name="$(awk -F': ' '/Model Name/ {print $2; exit}' <<< "${hw_data}")"
+chip_name="$(awk -F': ' '/Chip/ {print $2; exit}' <<< "${hw_data}")"
 
 has_notch=0
 case "${model_name}" in
@@ -57,3 +61,4 @@ fi
 
 echo "Installing HiddenBar (notch-capable model detected)."
 brew install --cask hiddenbar
+{{ end -}}

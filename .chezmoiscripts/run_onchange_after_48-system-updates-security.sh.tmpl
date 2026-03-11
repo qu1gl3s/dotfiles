@@ -1,29 +1,30 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if or .skipSystemUpdatesSecurity .skipPrivilegedSystem -}}
+#!/bin/bash
+echo "==> [48] Skipping system updates + FileVault enforcement (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_48-system-updates-security.sh.tmpl
 # Purpose: Enforce FileVault and Software Update security policy.
 # Prerequisites: macOS, sudo access for privileged writes.
-# Env flags:
-#   CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1 skips this script
-#   CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1 also skips this script
-# Failure behavior: exits non-zero if FileVault is off/decrypting/unknown or privileged drift cannot be remediated.
+# Env overrides: CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1, CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1
 # Trigger hash (system updates + filevault state): {{ output "bash" "-lc" "fv=$(fdesetup status 2>/dev/null || true); sch=$(softwareupdate --schedule 2>/dev/null || true); ad=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticDownload 2>/dev/null || echo unset); cd=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall 2>/dev/null || echo unset); cu=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdateInstall 2>/dev/null || echo unset); mu=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates 2>/dev/null || echo unset); au=$(defaults read /Library/Preferences/com.apple.commerce AutoUpdate 2>/dev/null || echo unset); printf \"%s|%s|%s|%s|%s|%s|%s\" \"$fv\" \"$sch\" \"$ad\" \"$cd\" \"$cu\" \"$mu\" \"$au\"" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY:-0}" == "1" ]]; then
-  echo "Skipping system updates + FileVault enforcement because CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1"
+  echo "==> [48] Skipping system updates + FileVault enforcement (CHEZMOI_SKIP_SYSTEM_UPDATES_SECURITY=1)"
   exit 0
 fi
 
 if [[ "${CHEZMOI_SKIP_PRIVILEGED_SYSTEM:-0}" == "1" ]]; then
-  echo "Skipping system updates + FileVault enforcement because CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1"
+  echo "==> [48] Skipping system updates + FileVault enforcement (CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [48] System updates + FileVault enforcement"
 
+echo "Checking FileVault status..."
 filevault_status="$(fdesetup status -extended 2>/dev/null || fdesetup status 2>/dev/null || true)"
 filevault_state="UNKNOWN"
 
@@ -76,6 +77,7 @@ need_critical_updates=0
 need_auto_macos_updates=0
 need_commerce_autoupdate=0
 
+echo "Checking Software Update schedule..."
 softwareupdate_schedule_output="$(softwareupdate --schedule 2>/dev/null || true)"
 if ! grep -Eqi 'turned on' <<< "${softwareupdate_schedule_output}"; then
   need_schedule_on=1
@@ -167,3 +169,4 @@ fi
 if [[ "${applied_changes}" -eq 0 ]]; then
   echo "FileVault and Software Update security settings already aligned."
 fi
+{{ end -}}

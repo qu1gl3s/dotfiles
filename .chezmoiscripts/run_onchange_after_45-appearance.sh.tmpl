@@ -1,23 +1,23 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipAppearance -}}
+#!/bin/bash
+echo "==> [45] Skipping appearance settings (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
-# Script: run_onchange_after_45-appearance.sh
+# Script: run_onchange_after_45-appearance.sh.tmpl
 # Purpose: Apply appearance settings (dark mode + wallpaper) without System Events.
 # Prerequisites: macOS and macos/appearance-baseline.sh in source dir.
-# Env flags:
-#   CHEZMOI_SKIP_APPEARANCE=1 skips this script
-#   CHEZMOI_SKIP_DARK_MODE=1 skips dark mode changes
-#   CHEZMOI_SKIP_WALLPAPER=1 skips wallpaper changes
-# Failure behavior: exits non-zero on missing dependencies or invalid baseline values.
+# Env overrides: CHEZMOI_SKIP_APPEARANCE=1, CHEZMOI_SKIP_DARK_MODE=1, CHEZMOI_SKIP_WALLPAPER=1
+# Trigger hash (macos/appearance-baseline.sh): {{ include "macos/appearance-baseline.sh" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_APPEARANCE:-0}" == "1" ]]; then
-  echo "Skipping appearance settings because CHEZMOI_SKIP_APPEARANCE=1"
+  echo "==> [45] Skipping appearance settings (CHEZMOI_SKIP_APPEARANCE=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [45] Appearance settings"
 
 if [[ -x /opt/homebrew/bin/brew ]]; then
   eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -100,3 +100,4 @@ fi
 if [[ "${appearance_changed}" -eq 1 ]]; then
   killall SystemUIServer >/dev/null 2>&1 || true
 fi
+{{ end -}}

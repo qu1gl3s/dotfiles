@@ -1,28 +1,28 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if or .skipPrivacyMin .skipMacosDefaults -}}
+#!/bin/bash
+echo "==> [49] Skipping privacy minimization (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_49-privacy-minimization.sh.tmpl
 # Purpose: Enforce personal privacy-minimization settings.
 # Prerequisites: macOS, sudo access for privileged analytics plist writes.
-# Env flags:
-#   CHEZMOI_SKIP_PRIVACY_MIN=1 skips this script
-#   CHEZMOI_SKIP_MACOS_DEFAULTS=1 also skips this script
-# Failure behavior: exits non-zero when privileged drift exists but sudo escalation cannot be completed.
+# Env overrides: CHEZMOI_SKIP_PRIVACY_MIN=1, CHEZMOI_SKIP_MACOS_DEFAULTS=1
 # Trigger hash (privacy state): {{ output "bash" "-lc" "ad=$(defaults read com.apple.AdLib allowApplePersonalizedAdvertising 2>/dev/null || echo unset); as=$(defaults read com.apple.assistant.support \"Assistant Enabled\" 2>/dev/null || echo unset); di=$(defaults read com.apple.assistant.support \"Dictation Enabled\" 2>/dev/null || echo unset); vt=$(defaults read com.apple.Siri VoiceTriggerUserEnabled 2>/dev/null || echo unset); au=$(plutil -extract AutoSubmit raw -o - \"/Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist\" 2>/dev/null || echo unset); tp=$(plutil -extract ThirdPartyDataSubmit raw -o - \"/Library/Application Support/CrashReporter/DiagnosticMessagesHistory.plist\" 2>/dev/null || echo unset); printf \"%s|%s|%s|%s|%s|%s\" \"$ad\" \"$as\" \"$di\" \"$vt\" \"$au\" \"$tp\"" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_PRIVACY_MIN:-0}" == "1" ]]; then
-  echo "Skipping privacy minimization because CHEZMOI_SKIP_PRIVACY_MIN=1"
+  echo "==> [49] Skipping privacy minimization (CHEZMOI_SKIP_PRIVACY_MIN=1)"
   exit 0
 fi
 
 if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
-  echo "Skipping privacy minimization because CHEZMOI_SKIP_MACOS_DEFAULTS=1"
+  echo "==> [49] Skipping privacy minimization (CHEZMOI_SKIP_MACOS_DEFAULTS=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [49] Privacy minimization"
 
 expected_personalized_ads="0"
 expected_assistant_enabled="0"
@@ -113,3 +113,4 @@ fi
 if [[ "${applied_changes}" -eq 0 ]]; then
   echo "Privacy minimization settings already aligned."
 fi
+{{ end -}}

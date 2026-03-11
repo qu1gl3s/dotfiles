@@ -1,13 +1,15 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipVerify -}}
+#!/bin/bash
+echo "==> [60] Skipping bootstrap verification (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_60-verify-bootstrap.sh.tmpl
 # Purpose: Run post-apply bootstrap verification checks.
 # Prerequisites: scripts/verify-bootstrap.sh exists in source dir.
-# Env flags:
-#   CHEZMOI_SKIP_VERIFY=1 skips this script
-#   CHEZMOI_VERIFY_STRICT=1 makes verification fail on any FAIL checks
-# Failure behavior: exits non-zero when verifier is missing or strict mode finds failures.
+# Env overrides: CHEZMOI_SKIP_VERIFY=1, CHEZMOI_VERIFY_STRICT=1
 # Trigger hash (Brewfile): {{ include "Brewfile" | sha256sum }}
 # Trigger hash (mas/apps.txt): {{ include "mas/apps.txt" | sha256sum }}
 # Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
@@ -15,7 +17,7 @@ set -euo pipefail
 # Trigger hash (macos/settings-baseline.sh): {{ include "macos/settings-baseline.sh" | sha256sum }}
 # Trigger hash (macos/clock-baseline.sh): {{ include "macos/clock-baseline.sh" | sha256sum }}
 # Trigger hash (macos/textedit-baseline.sh): {{ include "macos/textedit-baseline.sh" | sha256sum }}
-# Trigger hash (44-textedit): {{ include ".chezmoiscripts/run_onchange_after_44-textedit.sh" | sha256sum }}
+# Trigger hash (44-textedit): {{ include ".chezmoiscripts/run_onchange_after_44-textedit.sh.tmpl" | sha256sum }}
 # Trigger hash (47-privileged-system): {{ include ".chezmoiscripts/run_onchange_after_47-privileged-system.sh.tmpl" | sha256sum }}
 # Trigger hash (48-system-updates-security): {{ include ".chezmoiscripts/run_onchange_after_48-system-updates-security.sh.tmpl" | sha256sum }}
 # Trigger hash (49-privacy-minimization): {{ include ".chezmoiscripts/run_onchange_after_49-privacy-minimization.sh.tmpl" | sha256sum }}
@@ -25,13 +27,11 @@ set -euo pipefail
 # Trigger hash (scripts/verify-privacy.sh): {{ include "scripts/verify-privacy.sh" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_VERIFY:-0}" == "1" ]]; then
-  echo "Skipping bootstrap verification because CHEZMOI_SKIP_VERIFY=1"
+  echo "==> [60] Skipping bootstrap verification (CHEZMOI_SKIP_VERIFY=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [60] Bootstrap verification"
 
 SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
 VERIFY_SCRIPT="${SOURCE_DIR}/scripts/verify-bootstrap.sh"
@@ -41,4 +41,10 @@ if [[ ! -f "${VERIFY_SCRIPT}" ]]; then
   exit 1
 fi
 
+export CHEZMOI_VERIFY_STRICT="{{ .verifyStrict }}"
+if [[ "${CHEZMOI_VERIFY_STRICT}" != "true" ]]; then
+  CHEZMOI_VERIFY_STRICT="${CHEZMOI_VERIFY_STRICT:-0}"
+fi
+
 bash "${VERIFY_SCRIPT}"
+{{ end -}}

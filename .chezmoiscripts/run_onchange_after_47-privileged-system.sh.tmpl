@@ -1,28 +1,28 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if or .skipPrivilegedSystem .skipMacosDefaults -}}
+#!/bin/bash
+echo "==> [47] Skipping privileged system settings (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_47-privileged-system.sh.tmpl
 # Purpose: Apply privileged security/power settings with sudo only when drift exists.
 # Prerequisites: macOS, sudo access for privileged writes.
-# Env flags:
-#   CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1 skips this script
-#   CHEZMOI_SKIP_MACOS_DEFAULTS=1 also skips this script
-# Failure behavior: exits non-zero when privileged drift exists but sudo escalation cannot be completed.
+# Env overrides: CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1, CHEZMOI_SKIP_MACOS_DEFAULTS=1
 # Trigger hash (privileged state): {{ output "bash" "-lc" "fw=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null || true); st=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode 2>/dev/null || true); ap=$(defaults read com.apple.screensaver askForPassword 2>/dev/null || echo unset); ad=$(defaults read com.apple.screensaver askForPasswordDelay 2>/dev/null || echo unset); pb=$(pmset -g custom 2>/dev/null | awk \"BEGIN{s=0} /^Battery Power:/{s=1;next} /^AC Power:/{s=0} s && \\$1==\\\"displaysleep\\\"{print \\$2; exit}\"); pc=$(pmset -g custom 2>/dev/null | awk \"BEGIN{s=0} /^AC Power:/{s=1;next} s && \\$1==\\\"displaysleep\\\"{print \\$2; exit}\"); if ioreg -rd1 -c AppleBiometricServices >/dev/null 2>&1; then if grep -Eq \"^[[:space:]]*auth[[:space:]]+sufficient[[:space:]]+pam_tid\\\\.so\" /etc/pam.d/sudo_local 2>/dev/null; then td=enabled; else td=missing; fi; else td=na; fi; printf \"%s|%s|%s|%s|%s|%s|%s\" \"$fw\" \"$st\" \"$ap\" \"$ad\" \"${pb:-unset}\" \"${pc:-unset}\" \"$td\"" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_PRIVILEGED_SYSTEM:-0}" == "1" ]]; then
-  echo "Skipping privileged system settings because CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1"
+  echo "==> [47] Skipping privileged system settings (CHEZMOI_SKIP_PRIVILEGED_SYSTEM=1)"
   exit 0
 fi
 
 if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
-  echo "Skipping privileged system settings because CHEZMOI_SKIP_MACOS_DEFAULTS=1"
+  echo "==> [47] Skipping privileged system settings (CHEZMOI_SKIP_MACOS_DEFAULTS=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [47] Privileged system settings"
 
 expected_ask_for_password="1"
 expected_ask_for_password_delay="0"
@@ -65,7 +65,6 @@ has_pam_tid() {
   grep -Eq '^[[:space:]]*auth[[:space:]]+sufficient[[:space:]]+pam_tid\.so' <<< "${content}"
 }
 
-# Non-privileged defaults writes (screensaver prompt settings)
 current_ask_for_password="$(defaults read com.apple.screensaver askForPassword 2>/dev/null || echo "<unset>")"
 if [[ "${current_ask_for_password}" != "${expected_ask_for_password}" ]]; then
   defaults write com.apple.screensaver askForPassword -int "${expected_ask_for_password}"
@@ -80,7 +79,7 @@ if [[ "${current_ask_for_password_delay}" != "${expected_ask_for_password_delay}
   applied_changes=1
 fi
 
-# Privileged drift detection
+echo "Checking firewall state..."
 firewall_state="$("/usr/libexec/ApplicationFirewall/socketfilterfw" --getglobalstate 2>/dev/null || true)"
 if ! grep -qi "enabled" <<< "${firewall_state}"; then
   need_firewall_enable=1
@@ -187,3 +186,4 @@ fi
 if [[ "${applied_changes}" -eq 0 ]]; then
   echo "Privileged system settings already aligned."
 fi
+{{ end -}}

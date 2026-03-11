@@ -1,21 +1,23 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else if .skipMacosDefaults -}}
+#!/bin/bash
+echo "==> [41] Skipping screenshot location (disabled in chezmoi.toml)"
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
 # Script: run_onchange_after_41-screenshot-location.sh.tmpl
 # Purpose: Enforce screenshot save location under configured Synology Drive CloudStorage.
 # Prerequisites: macOS with exactly one SynologyDrive-* root and an existing Screenshots folder.
-# Env flags: CHEZMOI_SKIP_MACOS_DEFAULTS=1 skips this script.
-# Failure behavior: warns and defers when Synology prerequisites are missing; exits non-zero only on write failures.
+# Env override: CHEZMOI_SKIP_MACOS_DEFAULTS=1
 # Trigger hash (screenshot convergence state): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/screenshot-location-state\"; if [ -f \"$state_file\" ]; then cat \"$state_file\"; else echo unset; fi" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
-  echo "Skipping screenshot location because CHEZMOI_SKIP_MACOS_DEFAULTS=1"
+  echo "==> [41] Skipping screenshot location (CHEZMOI_SKIP_MACOS_DEFAULTS=1)"
   exit 0
 fi
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  exit 0
-fi
+echo "==> [41] Screenshot location"
 
 STATE_DIR="${HOME}/.local/state/chezmoi"
 SCREENSHOT_STATE_FILE="${STATE_DIR}/screenshot-location-state"
@@ -73,3 +75,4 @@ defaults write com.apple.screencapture location -string "${desired_path}"
 killall SystemUIServer >/dev/null 2>&1 || true
 mark_aligned
 echo "Applied screenshot location: ${desired_path}"
+{{ end -}}

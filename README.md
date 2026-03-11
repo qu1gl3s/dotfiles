@@ -8,6 +8,58 @@ This repo bootstraps a macOS Apple Silicon machine with shell/git/ssh config, pa
 sh -c "$(curl -fsLS get.chezmoi.io/lb)" -- init --apply <github-user>
 ```
 
+Useful flags during bootstrap:
+
+- `chezmoi apply -v` -- verbose output showing each action.
+- `chezmoi apply -k` -- keep going after errors so remaining scripts still run.
+
+## Configuration
+
+`chezmoi init` generates `~/.config/chezmoi/chezmoi.toml` from `.chezmoi.toml.tmpl`. The default config enables progress output and sets all feature toggles to their safe defaults.
+
+After init, customize toggles in `~/.config/chezmoi/chezmoi.toml`:
+
+```toml
+[data]
+    skipBrew = false
+    skipMas = false
+    skipDefender = false
+    skipWireguardSetup = false
+    skipMacosDefaults = false
+    skipDisplayScaling = false
+    skipAppearance = false
+    skipDockLayout = false
+    skipPrivilegedSystem = false
+    skipSystemUpdatesSecurity = false
+    skipPrivacyMin = false
+    skipVerify = false
+    skipReadiness = false
+    installOptional = false
+    verifyStrict = false
+    readinessStrict = false
+```
+
+| Toggle | Scripts affected | Description |
+|---|---|---|
+| `skipBrew` | 10, 30, 31, 35, 42, 50 | Homebrew formulas, casks, and brew-dependent tools |
+| `skipMas` | 34, 37 | Mac App Store installs via mas |
+| `skipDefender` | 36 | Microsoft Defender for Consumers installer |
+| `skipWireguardSetup` | 37 | WireGuard VPN interactive setup |
+| `skipMacosDefaults` | 40, 41, 43, 44, 47, 49 | macOS defaults (accent color, clock, TextEdit, etc.) |
+| `skipDisplayScaling` | 42 | Built-in display "More Space" scaling |
+| `skipAppearance` | 45 | Appearance settings (dark mode, wallpaper) |
+| `skipDockLayout` | 50 | Dock app layout management |
+| `skipPrivilegedSystem` | 47, 48 | Firewall, stealth, pmset, Touch ID sudo |
+| `skipSystemUpdatesSecurity` | 48 | FileVault + Software Update enforcement |
+| `skipPrivacyMin` | 49 | Ads, analytics, Siri, Dictation |
+| `skipVerify` | 60 | Post-apply bootstrap verification |
+| `skipReadiness` | 61 | Post-apply readiness checklist |
+| `installOptional` | 30 | Include Brewfile.optional in brew bundle |
+| `verifyStrict` | 60 | Fail chezmoi apply on verification failures |
+| `readinessStrict` | 61 | Fail chezmoi apply on readiness TODO/FAIL items |
+
+Each toggle also has a one-off environment variable override for use in CI or single runs without editing the config file. See the "Common toggles" section below.
+
 ## Managed areas
 
 - Shell: `~/.zshrc`, `~/.zprofile`, `~/.aliases`
@@ -25,23 +77,24 @@ Core automation:
 - `.chezmoiscripts/run_onchange_after_30-brew-bundle.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_31-hiddenbar-notch.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_34-mas-apps.sh.tmpl`
-- `.chezmoiscripts/run_once_after_35-optional-casks.sh`
-- `.chezmoiscripts/run_once_after_36-microsoft-defender-consumer.sh`
+- `.chezmoiscripts/run_once_after_35-optional-casks.sh.tmpl`
+- `.chezmoiscripts/run_once_after_36-microsoft-defender-consumer.sh.tmpl`
 
 Notes:
 
 - HiddenBar is installed only on notch-capable MacBooks.
 - Optional casks prompt once from `casks/optional-casks.txt`.
 - `freac-continuous` installs from upstream DMG (not a Homebrew cask token).
+- The Defender installer auto-detects PKG vs DMG downloads and handles both.
 
 ## macOS automation
 
-- `.chezmoiscripts/run_onchange_after_40-macos-defaults.sh`
+- `.chezmoiscripts/run_onchange_after_40-macos-defaults.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_41-screenshot-location.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_42-display-more-space.sh.tmpl`
-- `.chezmoiscripts/run_onchange_after_43-menu-bar-clock.sh`
-- `.chezmoiscripts/run_onchange_after_44-textedit.sh`
-- `.chezmoiscripts/run_onchange_after_45-appearance.sh`
+- `.chezmoiscripts/run_onchange_after_43-menu-bar-clock.sh.tmpl`
+- `.chezmoiscripts/run_onchange_after_44-textedit.sh.tmpl`
+- `.chezmoiscripts/run_onchange_after_45-appearance.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_47-privileged-system.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_48-system-updates-security.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_49-privacy-minimization.sh.tmpl`
@@ -106,10 +159,13 @@ Local ack state is stored under `~/.local/state/chezmoi/readiness/` and is not t
 
 ## Common toggles
 
+Persistent toggles live in `~/.config/chezmoi/chezmoi.toml` under `[data]` (see Configuration above). For one-off overrides, use environment variables:
+
 ```sh
 CHEZMOI_SKIP_BREW=1 chezmoi apply
 CHEZMOI_INSTALL_OPTIONAL=1 chezmoi apply
 CHEZMOI_SKIP_MAS=1 chezmoi apply
+CHEZMOI_SKIP_DEFENDER=1 chezmoi apply
 CHEZMOI_SKIP_WIREGUARD_SETUP=1 chezmoi apply
 CHEZMOI_SKIP_MACOS_DEFAULTS=1 chezmoi apply
 CHEZMOI_SKIP_DISPLAY_SCALING=1 chezmoi apply

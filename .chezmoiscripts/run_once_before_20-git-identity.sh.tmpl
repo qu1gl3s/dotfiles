@@ -1,11 +1,13 @@
+{{ if ne .chezmoi.os "darwin" -}}
+{{ else -}}
 #!/bin/bash
 set -euo pipefail
 #
-# Script: run_once_before_20-git-identity.sh
+# Script: run_once_before_20-git-identity.sh.tmpl
 # Purpose: Configure git user identity once when missing using ~/.gitconfig.local include file.
 # Prerequisites: git available in PATH.
-# Env flags: none.
-# Failure behavior: exits non-zero only on git config write failures.
+
+echo "==> [20] Git identity bootstrap"
 
 if ! command -v git >/dev/null 2>&1; then
   echo "git not found; skipping git identity setup."
@@ -55,3 +57,4 @@ fi
 git config --file "${LOCAL_GITCONFIG}" user.name "${current_name}"
 git config --file "${LOCAL_GITCONFIG}" user.email "${current_email}"
 echo "Configured git identity in ${LOCAL_GITCONFIG}."
+{{ end -}}
