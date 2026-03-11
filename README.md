@@ -41,7 +41,7 @@ After init, customize toggles in `~/.config/chezmoi/chezmoi.toml`:
 
 | Toggle | Scripts affected | Description |
 |---|---|---|
-| `skipBrew` | 10, 30, 31, 35, 42, 50 | Homebrew formulas, casks, and brew-dependent tools |
+| `skipBrew` | 10, 30, 31, 32, 35, 42, 50 | Homebrew formulas, casks, and brew-dependent tools |
 | `skipMas` | 34, 37 | Mac App Store installs via mas |
 | `skipDefender` | 36 | Microsoft Defender for Consumers installer |
 | `skipWireguardSetup` | 37 | WireGuard VPN interactive setup |
@@ -76,6 +76,7 @@ Core automation:
 
 - `.chezmoiscripts/run_onchange_after_30-brew-bundle.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_31-hiddenbar-notch.sh.tmpl`
+- `.chezmoiscripts/run_onchange_after_32-1password-ssh-agent-compat.sh.tmpl`
 - `.chezmoiscripts/run_onchange_after_34-mas-apps.sh.tmpl`
 - `.chezmoiscripts/run_once_after_35-optional-casks.sh.tmpl`
 - `.chezmoiscripts/run_once_after_36-microsoft-defender-consumer.sh.tmpl`
@@ -86,6 +87,7 @@ Notes:
 - Optional casks prompt once from `casks/optional-casks.txt`.
 - `freac-continuous` installs from upstream DMG (not a Homebrew cask token).
 - The Defender installer is PKG-only and validates package signature before install.
+- SSH is configured to use `IdentityAgent ~/.1password/agent.sock`; slot `32` backfills a compatibility symlink from the legacy 1Password socket path when needed.
 - WireGuard setup can generate a new client keypair and saves the client public key to `~/.local/state/chezmoi/wireguard-latest-public-key` for pfSense peer setup.
 
 ## macOS automation
@@ -203,6 +205,7 @@ CHEZMOI_READINESS_STRICT=1 chezmoi apply
 - `20` git identity bootstrap
 - `30` brew bundle
 - `31` conditional cask installs
+- `32` 1Password SSH agent socket compatibility
 - `34` MAS installs
 - `35` optional cask prompt
 - `36` Defender installer

@@ -196,6 +196,33 @@ for cmd in brew chezmoi dockutil mas desktoppr displayplacer wg; do
   fi
 done
 
+section "1Password SSH agent"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  warn "Skipping 1Password SSH agent checks on non-macOS host"
+else
+  ssh_config_path="${HOME}/.ssh/config"
+  modern_agent_sock="${HOME}/.1password/agent.sock"
+  legacy_agent_sock="${HOME}/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"
+
+  if [[ -f "${ssh_config_path}" ]]; then
+    if grep -Eq '^[[:space:]]*IdentityAgent[[:space:]]+~/.1password/agent\.sock([[:space:]]|$)' "${ssh_config_path}"; then
+      pass "SSH config uses IdentityAgent ~/.1password/agent.sock"
+    else
+      fail "SSH config missing IdentityAgent ~/.1password/agent.sock in ${ssh_config_path}"
+    fi
+  else
+    fail "SSH config not found: ${ssh_config_path}"
+  fi
+
+  if [[ -S "${modern_agent_sock}" ]]; then
+    pass "1Password SSH agent socket present at ${modern_agent_sock}"
+  elif [[ -S "${legacy_agent_sock}" ]]; then
+    warn "Legacy 1Password socket exists but modern socket is missing; rerun chezmoi apply to link compatibility path."
+  else
+    warn "1Password SSH agent socket not detected; open 1Password, enable SSH agent, and rerun chezmoi apply."
+  fi
+fi
+
 section "Homebrew convergence"
 if [[ ! -f "${BREWFILE}" ]]; then
   fail "Brewfile not found: ${BREWFILE}"
