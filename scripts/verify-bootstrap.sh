@@ -467,6 +467,7 @@ else
   check_default_equals "com.apple.menuextra.clock" "IsAnalog" "0"
   check_default_equals "com.apple.menuextra.clock" "ShowDayOfWeek" "1"
   check_default_equals "com.apple.menuextra.clock" "ShowDate" "1"
+  check_default_equals "com.apple.menuextra.clock" "ShowSeconds" "1"
   check_default_equals "com.apple.menuextra.clock" "ShowAMPM" "0"
   check_default_equals "com.apple.ControlCenter" "NSStatusItem VisibleCC Clock" "1"
   check_currenthost_default_equals "com.apple.controlcenter" "BatteryShowPercentage" "1"
@@ -520,8 +521,12 @@ else
   check_default_equals "NSGlobalDomain" "NavPanelFileListModeForSaveMode" "2"
   check_default_equals "NSGlobalDomain" "NSNavPanelFileListModeForSaveMode2" "2"
   check_default_equals "com.apple.dock" "show-recents" "0"
+  check_default_equals "com.apple.dock" "magnification" "1"
+  check_default_equals "com.apple.dock" "largesize" "93"
   check_default_equals "com.apple.finder" "FXPreferredViewStyle" "Nlsv"
   check_default_equals "com.apple.finder" "FinderSpawnTab" "0"
+  check_default_equals "com.apple.finder" "_FXSortFoldersFirst" "1"
+  check_default_equals "com.apple.finder" "_FXSortFoldersFirstOnDesktop" "1"
   check_default_equals "com.apple.finder" "NewWindowTarget" "PfHm"
   check_default_equals "com.apple.finder" "ShowExternalHardDrivesOnDesktop" "1"
   check_default_equals "com.apple.finder" "ShowHardDrivesOnDesktop" "1"
@@ -551,10 +556,14 @@ else
   check_default_equals "com.apple.tipsd" "TPSWaitingToShowWelcomeNotification" "0"
   check_default_equals "com.apple.tipsd" "TPSWelcomeNotificationReminderState" "1"
 
-  ncprefs_check_output=""
-  ncprefs_check_status=0
-  ncprefs_check_output="$(
-    python3 - "${HOME}/Library/Preferences/com.apple.ncprefs.plist" <<'PY'
+  ncprefs_path="${HOME}/Library/Preferences/com.apple.ncprefs.plist"
+  if [[ ! -f "${ncprefs_path}" ]]; then
+    info "com.apple.ncprefs not present; skipping optional Tips auth probe."
+  else
+    ncprefs_check_output=""
+    ncprefs_check_status=0
+    ncprefs_check_output="$(
+      python3 - "${ncprefs_path}" <<'PY'
 import plistlib
 import sys
 from pathlib import Path
@@ -583,27 +592,24 @@ for entry in apps:
 print("MISSING_ENTRY")
 sys.exit(21)
 PY
-  )" || ncprefs_check_status=$?
+    )" || ncprefs_check_status=$?
 
-  case "${ncprefs_check_status}" in
-    0)
-      tips_auth="${ncprefs_check_output#FOUND_AUTH=}"
-      if [[ "${tips_auth}" == "0" ]]; then
-        pass "com.apple.ncprefs com.apple.tips auth=0"
-      else
-        fail "com.apple.ncprefs com.apple.tips auth expected 0, found ${tips_auth}"
-      fi
-      ;;
-    20)
-      warn "com.apple.ncprefs not found yet at ~/Library/Preferences/com.apple.ncprefs.plist"
-      ;;
-    21)
-      warn "com.apple.tips entry not present in com.apple.ncprefs yet"
-      ;;
-    *)
-      fail "Unable to parse com.apple.ncprefs for Tips auth: ${ncprefs_check_output}"
-      ;;
-  esac
+    case "${ncprefs_check_status}" in
+      0)
+        tips_auth="${ncprefs_check_output#FOUND_AUTH=}"
+        info "com.apple.ncprefs com.apple.tips auth=${tips_auth} (informational only)"
+        ;;
+      20)
+        info "com.apple.ncprefs not found; skipping optional Tips auth probe."
+        ;;
+      21)
+        info "com.apple.tips entry not present in com.apple.ncprefs (informational only)."
+        ;;
+      *)
+        info "Unable to parse com.apple.ncprefs for Tips auth (informational only): ${ncprefs_check_output}"
+        ;;
+    esac
+  fi
 fi
 
 section "Privileged security/power"

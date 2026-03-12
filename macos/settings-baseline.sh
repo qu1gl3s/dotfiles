@@ -11,8 +11,12 @@ NSGlobalDomain NSNavPanelFileListModeForOpenMode2 int 2
 NSGlobalDomain NavPanelFileListModeForSaveMode int 2
 NSGlobalDomain NSNavPanelFileListModeForSaveMode2 int 2
 com.apple.dock show-recents bool 0
+com.apple.dock magnification bool 1
+com.apple.dock largesize int 93
 com.apple.finder FXPreferredViewStyle string Nlsv
 com.apple.finder FinderSpawnTab bool 0
+com.apple.finder _FXSortFoldersFirst bool 1
+com.apple.finder _FXSortFoldersFirstOnDesktop bool 1
 com.apple.finder NewWindowTarget string PfHm
 com.apple.finder NewWindowTargetPath string __HOME_URI__
 com.apple.finder ShowExternalHardDrivesOnDesktop bool 1

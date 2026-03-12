@@ -120,8 +120,8 @@ Menu bar (`43`) also enforces:
 Tips suppression (`46`):
 
 - Suppresses Tips welcome/reminder prompts in `com.apple.tipsd`.
-- Applies best-effort `com.apple.tips auth=0` in `com.apple.ncprefs`.
-- If Tips is not yet present in `ncprefs`, it warns and retries on later `chezmoi apply`.
+- Probes `com.apple.ncprefs` for `com.apple.tips` auth as informational only.
+- Missing `ncprefs` or missing Tips entry in `ncprefs` is non-blocking and does not fail verification.
 
 System updates + FileVault enforcement (`48`):
 
@@ -169,6 +169,8 @@ Manual:
 bash ~/.local/share/chezmoi/scripts/verify-bootstrap.sh
 bash ~/.local/share/chezmoi/scripts/verify-privacy.sh --strict
 ```
+
+Run verification from a normal unsandboxed terminal session for authoritative results. Restricted sandbox contexts can produce false negatives for system-level checks (for example: FileVault, firewall, display enumeration, MAS session checks, and power profile reads).
 
 ## Readiness checklist
 
