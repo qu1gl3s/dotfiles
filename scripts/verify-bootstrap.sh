@@ -523,6 +523,7 @@ else
   check_default_equals "com.apple.dock" "show-recents" "0"
   check_default_equals "com.apple.dock" "magnification" "1"
   check_default_equals "com.apple.dock" "largesize" "93"
+  check_default_equals "com.apple.dock" "minimize-to-application" "1"
   check_default_equals "com.apple.finder" "FXPreferredViewStyle" "Nlsv"
   check_default_equals "com.apple.finder" "FinderSpawnTab" "0"
   check_default_equals "com.apple.finder" "_FXSortFoldersFirst" "1"
