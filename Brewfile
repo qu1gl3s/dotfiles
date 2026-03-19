@@ -3,6 +3,7 @@
 
 tap "teamookla/speedtest"
 
+brew "ansible"
 brew "axel"
 brew "bash"
 brew "chezmoi"
