@@ -12,6 +12,7 @@ NSGlobalDomain NSNavPanelFileListModeForSaveMode2 int
 
 # Dock behavior
 com.apple.dock show-recents bool
+com.apple.dock autohide bool
 com.apple.dock magnification bool
 com.apple.dock largesize int
 com.apple.dock minimize-to-application bool

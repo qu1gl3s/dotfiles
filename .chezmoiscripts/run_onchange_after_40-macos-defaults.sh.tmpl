@@ -11,6 +11,7 @@ set -euo pipefail
 # Prerequisites: macOS, settings baseline file present in source dir.
 # Env override: CHEZMOI_SKIP_MACOS_DEFAULTS=1
 # Trigger hash (macos/settings-baseline.sh): {{ include "macos/settings-baseline.sh" | sha256sum }}
+# Trigger hash (Dock visibility state): {{ output "bash" "-lc" "for key in autohide show-recents magnification largesize minimize-to-application; do if value=$(defaults read com.apple.dock \"$key\" 2>/dev/null); then printf '%s=%s\\n' \"$key\" \"$value\"; else printf '%s=__unset__\\n' \"$key\"; fi; done" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_MACOS_DEFAULTS:-0}" == "1" ]]; then
   echo "==> [40] Skipping macOS defaults (CHEZMOI_SKIP_MACOS_DEFAULTS=1)"

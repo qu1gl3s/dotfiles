@@ -109,7 +109,7 @@ Current defaults baseline (`40`) enforces:
 - Theme + scrolling: highlight color and natural scrolling off. `AppleAccentColor` is not enforced on `MacBook Neo` (`Mac17,*`) so the model-matched hardware color can remain in place.
 - Finder defaults: list view, open folders in windows (not tabs), home target path, desktop item visibility, recent tags off.
 - File dialogs: list-mode defaults for Open and Save panels.
-- Dock behavior: recent apps section hidden.
+- Dock behavior: auto-hide off and recent apps section hidden.
 - WindowManager behavior: desktop reveal-on-click disabled and desktop widgets hidden.
 
 Menu bar (`43`) also enforces:
