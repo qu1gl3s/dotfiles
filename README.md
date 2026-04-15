@@ -140,12 +140,13 @@ Privacy minimization (`49`):
 
 First-run UX deferrals:
 
-- MAS auth/session unavailable warns and defers app installs (slot `34`), then retries on next `chezmoi apply`.
+- MAS auth/session unavailable warns and defers app installs (slot `34`). If `mas` is logged in but apps are still missing or the session only failed transiently, slot `34` retries on every `chezmoi apply`; if `mas` is not logged in yet, it stays deferred until App Store login becomes available again.
 - MAS verification prefers `/Applications` bundle presence before treating required apps as missing; a new machine can still report session/indexing warnings until App Store auth and Spotlight metadata settle.
 - Synology screenshot prerequisites missing warn and defer location enforcement (slot `41`), then retries on next `chezmoi apply`.
-- Built-in display unavailable or display apply temporarily unavailable warns and defers More Space enforcement (slot `42`), then retries on next `chezmoi apply`.
+- Built-in display unavailable or display apply temporarily unavailable warns and defers More Space enforcement (slot `42`) without continuously retrying on unchanged display state.
+- If `displayplacer` apply fails for a specific display fingerprint, slot `42` records that failure and skips repeated retries until the display state/topology changes.
 - On `MacBook Neo` hardware, `displayplacer` may fail to enumerate the built-in panel even when lower-level display services can see it. Slot `42` treats that as a warning and retries on later applies instead of assuming display drift.
-- Slot `42` also re-runs when display state/topology changes (display fingerprint trigger), so reconnecting displays can re-enforce built-in More Space on the next `chezmoi apply`.
+- Slot `42` re-runs when display state/topology changes (display fingerprint trigger), so reconnecting displays can re-enforce built-in More Space on the next `chezmoi apply` without repeatedly resetting unchanged monitor layouts.
 
 ## Post-bootstrap remediation
 

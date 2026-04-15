@@ -26,21 +26,37 @@ echo "==> [42] Display scaling (More Space)"
 
 STATE_DIR="${HOME}/.local/state/chezmoi"
 DISPLAY_STATE_FILE="${STATE_DIR}/display-scaling-state"
+DISPLAY_FINGERPRINT=""
+PREVIOUS_DISPLAY_STATE=""
+
+compute_display_fingerprint() {
+  printf '%s' "${display_list_output}" | shasum -a 256 | awk '{print $1}'
+}
+
+load_previous_state() {
+  if [[ -f "${DISPLAY_STATE_FILE}" ]]; then
+    PREVIOUS_DISPLAY_STATE="$(cat "${DISPLAY_STATE_FILE}")"
+  else
+    PREVIOUS_DISPLAY_STATE=""
+  fi
+}
 
 mark_pending() {
+  local reason="${1:-generic}"
   mkdir -p "${STATE_DIR}"
-  printf 'pending-%s\n' "$(date +%s)" > "${DISPLAY_STATE_FILE}"
+  printf 'pending:%s:%s\n' "${reason}" "${DISPLAY_FINGERPRINT}" > "${DISPLAY_STATE_FILE}"
 }
 
 mark_aligned() {
   mkdir -p "${STATE_DIR}"
-  printf 'aligned\n' > "${DISPLAY_STATE_FILE}"
+  printf 'aligned:%s\n' "${DISPLAY_FINGERPRINT}" > "${DISPLAY_STATE_FILE}"
 }
 
 defer_with_warning() {
   local message="$1"
+  local reason="${2:-generic}"
   echo "WARN: ${message}"
-  mark_pending
+  mark_pending "${reason}"
   exit 0
 }
 
@@ -53,13 +69,16 @@ if [[ -x /opt/homebrew/bin/brew ]]; then
 fi
 
 if ! command -v displayplacer >/dev/null 2>&1; then
-  defer_with_warning "displayplacer not found; deferring display scaling until Homebrew tools are installed."
+  defer_with_warning "displayplacer not found; deferring display scaling until Homebrew tools are installed." "missing-displayplacer"
 fi
 
 display_list_output="$(displayplacer list 2>/dev/null || true)"
 if [[ -z "${display_list_output}" ]]; then
-  defer_with_warning "displayplacer returned no output; deferring display scaling for this apply."
+  defer_with_warning "displayplacer returned no output; deferring display scaling for this apply." "empty-display-list"
 fi
+
+DISPLAY_FINGERPRINT="$(compute_display_fingerprint)"
+load_previous_state
 
 builtin_count=0
 current_id=""
@@ -135,17 +154,17 @@ fi
 
 if [[ "${builtin_count}" -eq 0 ]]; then
   if display_subsystem_reports_builtin_panel; then
-    defer_with_warning "displayplacer did not enumerate the built-in panel, but lower-level display services did. Deferring display scaling on this Mac until tooling catches up."
+    defer_with_warning "displayplacer did not enumerate the built-in panel, but lower-level display services did. Deferring display scaling on this Mac until tooling catches up." "builtin-panel-not-enumerated"
   fi
-  defer_with_warning "Built-in display not detected (clamshell/external-only). Open built-in display and rerun chezmoi apply."
+  defer_with_warning "Built-in display not detected (clamshell/external-only). Open built-in display and rerun chezmoi apply." "builtin-panel-unavailable"
 fi
 
 if [[ "${builtin_count}" -gt 1 ]]; then
-  defer_with_warning "Multiple built-in displays detected; deferring display scaling until display topology is unambiguous."
+  defer_with_warning "Multiple built-in displays detected; deferring display scaling until display topology is unambiguous." "multiple-builtins"
 fi
 
 if [[ -z "${builtin_target_res}" ]]; then
-  defer_with_warning "No scaling:on modes found for built-in display; deferring display scaling."
+  defer_with_warning "No scaling:on modes found for built-in display; deferring display scaling." "no-scaled-modes"
 fi
 
 if [[ "${builtin_current_scaling}" == "on" && "${builtin_current_res}" == "${builtin_target_res}" ]]; then
@@ -154,8 +173,13 @@ if [[ "${builtin_current_scaling}" == "on" && "${builtin_current_res}" == "${bui
   exit 0
 fi
 
+if [[ "${PREVIOUS_DISPLAY_STATE}" == "pending:apply-failed-${builtin_target_res}:${DISPLAY_FINGERPRINT}" ]]; then
+  echo "Built-in display More Space apply previously failed for unchanged display state (${builtin_target_res}); skipping retry."
+  exit 0
+fi
+
 if ! displayplacer "id:${builtin_id} res:${builtin_target_res} scaling:on" >/dev/null 2>&1; then
-  defer_with_warning "displayplacer could not apply ${builtin_target_res}; unlock Displays settings/reconnect displays and rerun chezmoi apply."
+  defer_with_warning "displayplacer could not apply ${builtin_target_res}; unlock Displays settings/reconnect displays and rerun chezmoi apply." "apply-failed-${builtin_target_res}"
 fi
 
 mark_aligned
