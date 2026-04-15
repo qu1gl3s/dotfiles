@@ -121,10 +121,9 @@ defer_for_auth() {
 }
 
 mas_account_available() {
-  local account_output=""
   local account_status=0
 
-  account_output="$(run_with_timeout 10 env MAS_NO_AUTO_INDEX=1 mas account)" || account_status=$?
+  run_with_timeout 10 env MAS_NO_AUTO_INDEX=1 mas account >/dev/null || account_status=$?
   [[ "${account_status}" -eq 0 ]]
 }
 
