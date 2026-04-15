@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if or .skipSystemUpdatesSecurity .skipPrivilegedSystem -}}
+{{ else if or (and (hasKey . "skipSystemUpdatesSecurity") .skipSystemUpdatesSecurity) (and (hasKey . "skipPrivilegedSystem") .skipPrivilegedSystem) -}}
 #!/bin/bash
 echo "==> [48] Skipping system updates + FileVault enforcement (disabled in chezmoi.toml)"
 {{ else -}}

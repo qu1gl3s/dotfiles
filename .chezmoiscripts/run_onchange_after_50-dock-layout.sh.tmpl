@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if or .skipDockLayout .skipBrew -}}
+{{ else if or (and (hasKey . "skipDockLayout") .skipDockLayout) (and (hasKey . "skipBrew") .skipBrew) -}}
 #!/bin/bash
 echo "==> [50] Skipping Dock layout (disabled in chezmoi.toml)"
 {{ else -}}

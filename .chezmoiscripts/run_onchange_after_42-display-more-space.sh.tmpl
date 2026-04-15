@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if or .skipBrew .skipDisplayScaling -}}
+{{ else if or (and (hasKey . "skipBrew") .skipBrew) (and (hasKey . "skipDisplayScaling") .skipDisplayScaling) -}}
 #!/bin/bash
 echo "==> [42] Skipping display scaling (disabled in chezmoi.toml)"
 {{ else -}}

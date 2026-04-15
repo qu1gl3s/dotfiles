@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if or .skipBrew .skipMas .skipWireguardSetup -}}
+{{ else if or (and (hasKey . "skipBrew") .skipBrew) (and (hasKey . "skipMas") .skipMas) (and (hasKey . "skipWireguardSetup") .skipWireguardSetup) -}}
 #!/bin/bash
 echo "==> [37] Skipping WireGuard setup (disabled in chezmoi.toml)"
 {{ else -}}

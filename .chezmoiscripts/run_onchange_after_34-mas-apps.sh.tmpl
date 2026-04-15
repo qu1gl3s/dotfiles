@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if or .skipBrew .skipMas -}}
+{{ else if or (and (hasKey . "skipBrew") .skipBrew) (and (hasKey . "skipMas") .skipMas) -}}
 #!/bin/bash
 echo "==> [34] Skipping Mac App Store installs (disabled in chezmoi.toml)"
 {{ else -}}
@@ -50,7 +50,7 @@ if [[ ! -f "${MAS_APPS_FILE}" ]]; then
   exit 1
 fi
 
-install_optional="{{ .installOptional }}"
+install_optional="{{ if hasKey . "installOptional" }}{{ .installOptional }}{{ else }}false{{ end }}"
 if [[ "${install_optional}" == "true" || "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" ]]; then
   install_optional="1"
 fi

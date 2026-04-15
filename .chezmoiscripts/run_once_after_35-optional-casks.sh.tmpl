@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if .skipBrew -}}
+{{ else if and (hasKey . "skipBrew") .skipBrew -}}
 #!/bin/bash
 echo "==> [35] Skipping optional cask prompt (disabled in chezmoi.toml)"
 {{ else -}}

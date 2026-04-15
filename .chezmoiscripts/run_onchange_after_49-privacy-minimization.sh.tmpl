@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if or .skipPrivacyMin .skipMacosDefaults -}}
+{{ else if or (and (hasKey . "skipPrivacyMin") .skipPrivacyMin) (and (hasKey . "skipMacosDefaults") .skipMacosDefaults) -}}
 #!/bin/bash
 echo "==> [49] Skipping privacy minimization (disabled in chezmoi.toml)"
 {{ else -}}

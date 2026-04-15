@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if .skipBrew -}}
+{{ else if and (hasKey . "skipBrew") .skipBrew -}}
 #!/bin/bash
 echo "==> [30] Skipping Homebrew bundle (disabled in chezmoi.toml)"
 {{ else -}}
@@ -38,7 +38,7 @@ SOURCE_DIR="${CHEZMOI_SOURCE_DIR:-$HOME/.local/share/chezmoi}"
 echo "Installing Homebrew packages..."
 brew bundle --file "${SOURCE_DIR}/Brewfile"
 
-if [[ "{{ .installOptional }}" == "true" || "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" ]]; then
+if [[ "{{ if hasKey . "installOptional" }}{{ .installOptional }}{{ else }}false{{ end }}" == "true" || "${CHEZMOI_INSTALL_OPTIONAL:-0}" == "1" ]]; then
   if [[ -f "${SOURCE_DIR}/Brewfile.optional" ]]; then
     echo "Installing optional Homebrew packages..."
     brew bundle --file "${SOURCE_DIR}/Brewfile.optional"

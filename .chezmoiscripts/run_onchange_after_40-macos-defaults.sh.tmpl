@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if .skipMacosDefaults -}}
+{{ else if and (hasKey . "skipMacosDefaults") .skipMacosDefaults -}}
 #!/bin/bash
 echo "==> [40] Skipping macOS defaults (disabled in chezmoi.toml)"
 {{ else -}}

@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if .skipAppearance -}}
+{{ else if and (hasKey . "skipAppearance") .skipAppearance -}}
 #!/bin/bash
 echo "==> [45] Skipping appearance settings (disabled in chezmoi.toml)"
 {{ else -}}

@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if .skipVerify -}}
+{{ else if and (hasKey . "skipVerify") .skipVerify -}}
 #!/bin/bash
 echo "==> [60] Skipping bootstrap verification (disabled in chezmoi.toml)"
 {{ else -}}
@@ -42,7 +42,7 @@ if [[ ! -f "${VERIFY_SCRIPT}" ]]; then
   exit 1
 fi
 
-export CHEZMOI_VERIFY_STRICT="{{ .verifyStrict }}"
+export CHEZMOI_VERIFY_STRICT="{{ if hasKey . "verifyStrict" }}{{ .verifyStrict }}{{ else }}false{{ end }}"
 if [[ "${CHEZMOI_VERIFY_STRICT}" != "true" ]]; then
   CHEZMOI_VERIFY_STRICT="${CHEZMOI_VERIFY_STRICT:-0}"
 fi

@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if .skipDefender -}}
+{{ else if and (hasKey . "skipDefender") .skipDefender -}}
 #!/bin/bash
 echo "==> [36] Skipping Microsoft Defender install (disabled in chezmoi.toml)"
 {{ else -}}
