@@ -1,5 +1,5 @@
 {{ if ne .chezmoi.os "darwin" -}}
-{{ else if .skipReadiness -}}
+{{ else if and (hasKey . "skipReadiness") .skipReadiness -}}
 #!/bin/bash
 echo "==> [61] Skipping readiness checklist (disabled in chezmoi.toml)"
 {{ else -}}
@@ -34,7 +34,7 @@ if [[ ! -f "${VERIFY_SCRIPT}" ]]; then
   exit 1
 fi
 
-export CHEZMOI_READINESS_STRICT="{{ .readinessStrict }}"
+export CHEZMOI_READINESS_STRICT="{{ if hasKey . "readinessStrict" }}{{ .readinessStrict }}{{ else }}false{{ end }}"
 if [[ "${CHEZMOI_READINESS_STRICT}" != "true" ]]; then
   CHEZMOI_READINESS_STRICT="${CHEZMOI_READINESS_STRICT:-0}"
 fi
