@@ -12,7 +12,7 @@ set -euo pipefail
 # Env overrides: CHEZMOI_SKIP_BREW=1, CHEZMOI_SKIP_MAS=1, CHEZMOI_INSTALL_OPTIONAL=1
 # Trigger hash (mas/apps.txt): {{ include "mas/apps.txt" | sha256sum }}
 # Trigger hash (mas/optional-apps.txt): {{ include "mas/optional-apps.txt" | sha256sum }}
-# Trigger hash (mas convergence state): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/mas-convergence-state\"; if [ -f \"$state_file\" ]; then cat \"$state_file\"; else echo unset; fi" | sha256sum }}
+# Trigger hash (mas convergence state): {{ output "bash" "-lc" "state_file=\"$HOME/.local/state/chezmoi/mas-convergence-state\"; state=\"unset\"; if [ -f \"$state_file\" ]; then state=\"$(cat \"$state_file\")\"; fi; case \"$state\" in retry-pending*) printf 'retry-%s\n' \"$(date +%s)\" ;; blocked-auth) if command -v mas >/dev/null 2>&1 && env MAS_NO_AUTO_INDEX=1 mas account >/dev/null 2>&1; then echo auth-restored; else echo blocked-auth; fi ;; *) echo \"$state\" ;; esac" | sha256sum }}
 
 if [[ "${CHEZMOI_SKIP_BREW:-0}" == "1" ]]; then
   echo "==> [34] Skipping Mac App Store installs (CHEZMOI_SKIP_BREW=1)"
@@ -64,7 +64,12 @@ export MAS_NO_AUTO_INDEX=1
 
 mark_pending() {
   mkdir -p "${STATE_DIR}"
-  printf 'pending-%s\n' "$(date +%s)" > "${MAS_STATE_FILE}"
+  printf 'retry-pending-%s\n' "$(date +%s)" > "${MAS_STATE_FILE}"
+}
+
+mark_blocked_auth() {
+  mkdir -p "${STATE_DIR}"
+  printf 'blocked-auth\n' > "${MAS_STATE_FILE}"
 }
 
 mark_aligned() {
@@ -111,8 +116,24 @@ defer_for_auth() {
   local reason="$1"
   echo "WARN: ${reason}"
   echo "WARN: Deferring Mac App Store installs until auth/session is available. Rerun: chezmoi apply"
-  mark_pending
+  mark_blocked_auth
   exit 0
+}
+
+mas_account_available() {
+  local account_output=""
+  local account_status=0
+
+  account_output="$(run_with_timeout 10 env MAS_NO_AUTO_INDEX=1 mas account)" || account_status=$?
+  [[ "${account_status}" -eq 0 ]]
+}
+
+mark_retry_state_for_session_issue() {
+  if mas_account_available; then
+    mark_pending
+  else
+    mark_blocked_auth
+  fi
 }
 
 echo "Querying Mac App Store..."
@@ -121,7 +142,10 @@ mas_list_status=0
 mas_list_output="$(run_with_timeout 20 env MAS_NO_AUTO_INDEX=1 mas list)" || mas_list_status=$?
 
 if [[ "${mas_list_status}" -eq 124 ]]; then
-  defer_for_auth "mas list timed out (likely App Store auth/session unavailable)."
+  echo "WARN: mas list timed out (likely App Store auth/session unavailable)."
+  echo "WARN: Deferring Mac App Store installs until auth/session is available. Rerun: chezmoi apply"
+  mark_retry_state_for_session_issue
+  exit 0
 elif [[ "${mas_list_status}" -ne 0 ]]; then
   if is_auth_error "${mas_list_output}"; then
     defer_for_auth "App Store authentication required for mas installs."
@@ -156,6 +180,7 @@ install_apps_from_file() {
     install_output="$(run_with_timeout 60 mas install "${app_id}")" || install_status=$?
     if [[ "${install_status}" -eq 124 ]]; then
       echo "WARN: mas install timed out for ${app_name} (${app_id}); deferring remaining MAS installs."
+      mark_retry_state_for_session_issue
       return 10
     fi
 
@@ -163,6 +188,7 @@ install_apps_from_file() {
       echo "${install_output}" >&2
       if is_auth_error "${install_output}"; then
         echo "WARN: App Store authentication/session unavailable while installing ${app_name} (${app_id}); deferring remaining MAS installs."
+        mark_retry_state_for_session_issue
         return 10
       fi
       return 1
@@ -176,7 +202,6 @@ install_apps_from_file() {
 if ! install_apps_from_file "${MAS_APPS_FILE}" "required"; then
   install_result=$?
   if [[ "${install_result}" -eq 10 ]]; then
-    mark_pending
     exit 0
   fi
   exit "${install_result}"
@@ -186,7 +211,6 @@ if [[ "${install_optional}" == "1" ]]; then
   if ! install_apps_from_file "${MAS_OPTIONAL_APPS_FILE}" "optional"; then
     install_result=$?
     if [[ "${install_result}" -eq 10 ]]; then
-      mark_pending
       exit 0
     fi
     exit "${install_result}"
