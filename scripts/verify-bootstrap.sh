@@ -100,6 +100,74 @@ check_default_equals_if_present() {
   fi
 }
 
+check_finder_toolbar_layout() {
+  local plist_path="${HOME}/Library/Preferences/com.apple.finder.plist"
+  local check_output=""
+  local check_status=0
+
+  check_output="$(
+    python3 - "${plist_path}" <<'PY'
+import plistlib
+import sys
+from pathlib import Path
+
+plist_path = Path(sys.argv[1])
+
+desired = [
+    "com.apple.finder.BACK",
+    "com.apple.finder.SWCH",
+    "NSToolbarSpaceItem",
+    "com.apple.finder.ARNG",
+    "NSToolbarSpaceItem",
+    "com.apple.finder.SHAR",
+    "com.apple.finder.LABL",
+    "com.apple.finder.ACTN",
+    "NSToolbarSpaceItem",
+    "com.apple.finder.TRSH",
+    "com.apple.finder.SRCH",
+]
+
+if not plist_path.exists():
+    print("MISSING_FILE")
+    raise SystemExit(20)
+
+with plist_path.open("rb") as fh:
+    data = plistlib.load(fh)
+
+toolbar = data.get("NSToolbar Configuration Browser")
+if not isinstance(toolbar, dict):
+    print("MISSING_TOOLBAR")
+    raise SystemExit(21)
+
+items = toolbar.get("TB Item Identifiers")
+if items == desired:
+    print("MATCH")
+    raise SystemExit(0)
+
+print("CURRENT=" + ",".join(items or []))
+raise SystemExit(22)
+PY
+  )" || check_status=$?
+
+  case "${check_status}" in
+    0)
+      pass "Finder toolbar layout includes Trash before Search"
+      ;;
+    20)
+      fail "Finder preferences plist missing: ${plist_path}"
+      ;;
+    21)
+      fail "Finder toolbar configuration missing from ${plist_path}"
+      ;;
+    22)
+      fail "Finder toolbar layout drifted (${check_output})"
+      ;;
+    *)
+      fail "Unable to verify Finder toolbar layout (${check_output})"
+      ;;
+  esac
+}
+
 touchid_available() {
   ioreg -rd1 -c AppleBiometricServices >/dev/null 2>&1
 }
@@ -537,6 +605,7 @@ else
   check_default_equals "com.apple.finder" "ShowRecentTags" "0"
   check_default_equals "com.apple.finder" "ShowRemovableMediaOnDesktop" "1"
   check_default_equals "com.apple.finder" "ShowStatusBar" "1"
+  check_finder_toolbar_layout
   check_default_equals "com.apple.WindowManager" "EnableStandardClickToShowDesktop" "0"
   check_default_equals "com.apple.WindowManager" "HideDesktop" "1"
   check_default_equals "com.apple.WindowManager" "StageManagerHideWidgets" "1"

@@ -34,3 +34,34 @@ com.apple.WindowManager StageManagerHideWidgets bool 1
 com.apple.WindowManager StandardHideWidgets bool 1
 SETTINGS
 }
+
+finder_toolbar_item_identifiers() {
+  cat <<'ITEMS'
+com.apple.finder.BACK
+com.apple.finder.SWCH
+NSToolbarSpaceItem
+com.apple.finder.ARNG
+NSToolbarSpaceItem
+com.apple.finder.SHAR
+com.apple.finder.LABL
+com.apple.finder.ACTN
+NSToolbarSpaceItem
+com.apple.finder.TRSH
+com.apple.finder.SRCH
+ITEMS
+}
+
+finder_toolbar_default_item_identifiers() {
+  cat <<'ITEMS'
+com.apple.finder.BACK
+com.apple.finder.SWCH
+NSToolbarSpaceItem
+com.apple.finder.ARNG
+NSToolbarSpaceItem
+com.apple.finder.SHAR
+com.apple.finder.LABL
+com.apple.finder.ACTN
+NSToolbarSpaceItem
+com.apple.finder.SRCH
+ITEMS
+}

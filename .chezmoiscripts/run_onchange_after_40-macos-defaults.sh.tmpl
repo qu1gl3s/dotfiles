@@ -68,6 +68,82 @@ values_equal() {
   esac
 }
 
+ensure_finder_toolbar_layout() {
+  local plist_path="${HOME}/Library/Preferences/com.apple.finder.plist"
+  local update_status=0
+  local desired_items=""
+  local desired_default_items=""
+
+  if ! declare -F finder_toolbar_item_identifiers >/dev/null 2>&1; then
+    echo "finder_toolbar_item_identifiers function not found in ${BASELINE_FILE}" >&2
+    return 1
+  fi
+
+  if ! declare -F finder_toolbar_default_item_identifiers >/dev/null 2>&1; then
+    echo "finder_toolbar_default_item_identifiers function not found in ${BASELINE_FILE}" >&2
+    return 1
+  fi
+
+  desired_items="$(finder_toolbar_item_identifiers)"
+  desired_default_items="$(finder_toolbar_default_item_identifiers)"
+
+  if FINDER_TOOLBAR_ITEMS="${desired_items}" \
+    FINDER_TOOLBAR_DEFAULT_ITEMS="${desired_default_items}" \
+    python3 - "${plist_path}" <<'PY'
+import plistlib
+import os
+import sys
+from pathlib import Path
+
+plist_path = Path(sys.argv[1])
+
+desired_items = os.environ["FINDER_TOOLBAR_ITEMS"].splitlines()
+desired_default_items = os.environ["FINDER_TOOLBAR_DEFAULT_ITEMS"].splitlines()
+desired_toolbar = {
+    "TB Default Item Identifiers": desired_default_items,
+    "TB Display Mode": 2,
+    "TB Icon Size Mode": 1,
+    "TB Is Shown": True,
+    "TB Item Identifiers": desired_items,
+    "TB Size Mode": 1,
+}
+
+data = {}
+if plist_path.exists():
+    with plist_path.open("rb") as fh:
+        data = plistlib.load(fh)
+
+if data.get("NSToolbar Configuration Browser") == desired_toolbar:
+    raise SystemExit(0)
+
+data["NSToolbar Configuration Browser"] = desired_toolbar
+with plist_path.open("wb") as fh:
+    plistlib.dump(data, fh, fmt=plistlib.FMT_BINARY, sort_keys=False)
+
+raise SystemExit(10)
+PY
+  then
+    update_status=0
+  else
+    update_status=$?
+  fi
+
+  case "${update_status}" in
+    0)
+      return 0
+      ;;
+    10)
+      echo "Applied Finder toolbar layout (Trash before Search)"
+      restart_finder=1
+      return 0
+      ;;
+    *)
+      echo "Unable to update Finder toolbar layout" >&2
+      return 1
+      ;;
+  esac
+}
+
 write_setting() {
   local domain="$1"
   local key="$2"
@@ -141,6 +217,8 @@ while read -r domain key type value; do
     com.apple.WindowManager) restart_dock=1 ;;
   esac
 done < <(macos_settings_entries)
+
+ensure_finder_toolbar_layout
 
 if [[ "${restart_dock}" -eq 1 ]]; then
   killall Dock >/dev/null 2>&1 || true
