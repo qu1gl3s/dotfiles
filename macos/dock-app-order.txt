@@ -7,8 +7,7 @@
 /Applications/Fastmail.app
 /System/Applications/Calendar.app
 /Applications/Visual Studio Code.app
-/Applications/Codex.app
-/Applications/ChatGPT.app
+/Applications/Claude.app
 /System/Applications/Messages.app
 /System/Applications/Photos.app
 /Applications/Spotify.app
