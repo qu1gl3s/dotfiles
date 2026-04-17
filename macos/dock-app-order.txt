@@ -1,7 +1,6 @@
 # Dock app order baseline (left side only), one absolute app path per line.
 # Finder is intentionally omitted; macOS manages Finder in Dock by default.
 # Blank lines and comments are ignored.
-/Applications/Applite.app
 /Applications/Google Chrome.app
 /Applications/Firefox.app
 /Applications/Fastmail.app

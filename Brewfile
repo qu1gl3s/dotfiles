@@ -26,7 +26,6 @@ brew "yt-dlp"
 # Compulsory casks
 cask "1password"
 cask "appcleaner"
-cask "applite"
 cask "coconutbattery"
 cask "claude"
 cask "desktoppr"
